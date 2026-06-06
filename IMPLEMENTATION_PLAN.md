@@ -151,10 +151,10 @@ All synthetic data files are processed through the full pipeline. Documents, chu
 
 **3.1 — Database Schema and Migrations**  
 Before writing any pipeline code, define all database tables using Alembic migrations. Create all tables now — even those not used until Phase 5 — to avoid disruptive schema changes later. Required tables:
-- `documents` — raw content, source metadata, extracted knowledge JSON, source quality score, `source_id` (unique per source), `content_hash` (SHA-256 of the raw content), `source_mtime` (file modification timestamp at ingest time). Add a `UNIQUE (source_id, content_hash)` constraint so duplicate inserts are rejected at the database level, not just caught in application logic.
+- `documents` — raw content, source metadata, extracted knowledge JSON, source quality score, `source_id`, `content_hash` (SHA-256 of raw content), `source_mtime`, `ingestion_status` (values: `pending`, `complete`), and `ingestion_job_id UUID REFERENCES ingestion_jobs(id)` (the ID of the ingestion job that created this row). A document is inserted as `pending` and transitioned to `complete` only after all its chunks, embeddings, and extracted knowledge have been successfully written. Add a `UNIQUE (source_id, content_hash)` constraint — at most one row per file version can exist at any time. The `ingestion_status` column is the completeness gate: the hash-skip idempotency check must only skip documents with `ingestion_status = 'complete'`. A `pending` row with a matching hash indicates a prior crashed run left partial data; it must be deleted (cascading to chunks and embeddings) and re-processed from scratch. The `ingestion_job_id` column is required so pending-row repair is scoped to the specific stale job — not any `pending` row matching the hash.
 - `chunks` — text segments linked to parent documents, with chunk index and token count
 - `embeddings` — vectors linked to chunks, with source metadata and timestamp for reranking. The vector column must be declared as dimension **1024** to match the `voyage-3` output. Setting the wrong dimension here breaks all vector operations and requires a migration to fix.
-- `ingestion_jobs` — tracks every sync run with status, timing, record count, and error messages. Add a `source_id` column and a partial unique index on `(source_id)` WHERE `status = 'running'` to prevent concurrent jobs for the same source from racing.
+- `ingestion_jobs` — tracks every sync run with status, timing, record count, and error messages. Required columns beyond the basics: `source_id`, `status` (values: `running`, `retrying`, `success`, `failed`), `locked_at` (timestamp updated to `now()` at job entry **and refreshed as a heartbeat after each major pipeline checkpoint** — file load, chunk, embed, store), and `attempt_number`. Add a **partial unique index on `(source_id) WHERE status IN ('running', 'retrying')`** — this covers both active states so no concurrent or retry-gap race can insert a second live job row for the same source. The heartbeat keeps `locked_at` fresh throughout the job lifetime; the stale threshold (15 minutes) must be set larger than the maximum expected time between any two checkpoints, not the total job duration.
 - `users` — for authentication. Include a `role` column (values: `user`, `admin`). Seed at least one admin user during initial setup.
 - `tasks` — for the PIL: description, user ID, urgency score, urgency band, status, deadline, context bundle (JSONB). Add a `UNIQUE (user_id, source_reference)` constraint to prevent duplicate task extraction from the same source message.
 - `corpus_version` — a single-row table storing an incrementing integer counter. Incremented transactionally at the end of every successful ingestion job. Used as the cache namespace prefix.
@@ -181,13 +181,66 @@ Implement the extractor in `app/pipeline/extractor.py`. Send the full document (
 **3.7 — Celery Configuration**  
 Define two named queues: `brain` for all Company Brain ingestion tasks, and `personal` for PIL task extraction. Both share the same Redis broker but use separate worker concurrency so they do not compete. Configure Celery Beat to scan the data folder every 5 minutes and trigger ingestion for new or modified files.
 
-**3.8 — Ingestion Celery Task**  
-Implement the full pipeline as a Celery task in `app/tasks/brain_tasks.py`. The task: loads the file via the appropriate connector, creates an `IngestionJob` record with status `running`, runs each document through extract → chunk → embed → store, updates the job to `success` on completion or `failed` with an error message on failure. The task must retry automatically up to 3 times with a short delay between attempts before marking the job as failed.
+**3.8 — Ingestion Celery Task and Job State Machine**  
+Implement the full pipeline as a Celery task in `app/tasks/brain_tasks.py`. The ingestion job must follow an explicit four-state machine that is safe under both caught exceptions and unhandled worker crashes:
+
+**States:** `running` → `retrying` → `running` (on each subsequent attempt) → `success` or `failed`
+
+The partial unique index covers `WHERE status IN ('running', 'retrying')`. There are **three distinct entry algorithms** — implementations must not conflate them:
+
+**Entry Algorithm A — Fresh start** (Celery Beat cycle or manual trigger, no `job_id` in task kwargs):
+1. Try `INSERT a new row with status = 'running', locked_at = now(), attempt_number = 1`. If successful, the source slot is acquired — continue to processing.
+2. If the INSERT is rejected by the partial unique index, an active row exists. Enter the **Stale Takeover Transaction** (Algorithm C). If Algorithm C succeeds, continue to processing with the new `job_id`. If it aborts (job is still live), exit silently.
+3. Pass the acquired `job_id` forward via `self.retry(kwargs={'job_id': job.id, ...})` so retries use Entry Algorithm B.
+
+**Entry Algorithm B — Retry start** (Celery retry invocation, `job_id` present in task kwargs):
+1. Do **not** INSERT. Do **not** run the stale-lock check.
+2. `UPDATE ingestion_jobs SET status='running', locked_at=now(), attempt_number=attempt_number+1 WHERE id=:job_id AND status='retrying'`. Check affected row count: 1 = success, proceed; 0 = the row was taken over by a stale-lock recovery between retry scheduling and execution — abort, do not proceed.
+3. This path is the only way a `retrying` row transitions back to `running`. It is keyed on `job_id`, not `source_id`, so it cannot collide with the unique index.
+
+**Entry Algorithm C — Stale Takeover Transaction** (called from Algorithm A when step 1's INSERT is rejected):
+All steps below run inside a single database transaction. The `SELECT FOR UPDATE` serializes concurrent takeover attempts — only one caller can proceed; all others wait and re-evaluate after the lock is released.
+1. `SELECT id, locked_at FROM ingestion_jobs WHERE source_id=:sid AND status IN ('running','retrying') FOR UPDATE` — lock the active row. If no row is returned (the prior job completed between Algorithm A's failed INSERT and now), rollback and retry Algorithm A step 1.
+2. Inspect `locked_at`. If less than 15 minutes old, the job is still live — rollback, abort silently.
+3. If stale: `UPDATE ingestion_jobs SET status='failed' WHERE id=:existing_id`, then `INSERT INTO ingestion_jobs (..., status='running', locked_at=now(), attempt_number=1)`, then COMMIT. Both the retirement and the replacement are committed atomically — the source slot is never unguarded between the two statements.
+4. If the transaction fails for any reason (including a concurrent takeover that already inserted after our lock): rollback. The old row reverts to its previous `running`/`retrying` state. Abort — do not retry the takeover.
+
+**Heartbeat requirement:** During processing, the worker must update `locked_at = now()` after each major pipeline checkpoint (file load, chunking, embedding API call, store). The stale threshold (15 minutes) must be larger than the maximum expected duration of any single checkpoint — document the chosen value and its basis in the code.
+
+**Bounded checkpoint timeouts:** Every external call (Voyage AI embedding, Claude extraction, database writes) must have an explicit timeout set. No checkpoint may block indefinitely. If a checkpoint exceeds its timeout, treat it as a retryable failure. This makes the stale threshold enforceable — a worker that is genuinely stuck will stop heartbeating within a bounded time, not after an unbounded hang.
+
+**Fencing requirement:** Before executing each write checkpoint — Commit 1 (pending document insert), the pending-row repair delete, Commit 2 (chunks + embeddings + complete), and every `locked_at` heartbeat update — the worker must verify its job row is still active: re-read `SELECT status FROM ingestion_jobs WHERE id=:job_id`. If `status != 'running'`, the worker has been evicted by a stale takeover — abort all further writes immediately without error. This prevents a slow-but-live worker that was evicted from writing after a new worker has taken over the same source. The fencing check must happen inside the same transaction as the write it guards, not as a separate preceding query, to eliminate the read-then-write race.
+
+**On caught retryable exception:** Transition the row to `retrying` before calling `self.retry(kwargs={'job_id': job.id, ...})`. The `retrying` state remains under the partial unique index — no other process can claim the source slot during the retry delay.
+
+**On worker crash:** No cleanup runs. The row stays `running` or `retrying` with a stale `locked_at`. Algorithm A's stale-lock check recovers it on the next attempt.
+
+**On final failure (max retries exceeded):** Transition to `failed` with the error message. Surface prominently in the ingestion dashboard.
+
+**On success:** Transition to `success` and increment `corpus_version` in the same transaction.
 
 **3.9 — Idempotency and Concurrency Safety**  
-Before ingesting a file, compute a SHA-256 hash of the file's raw content. Check the `documents` table for an existing row with the same `source_id` and `content_hash`. If a match exists, skip — the file has not changed. Do not rely on file modification time alone: mtimes are unreliable across git checkout, Docker bind mounts, and regenerated fixture files.
+Before ingesting a file, compute a SHA-256 hash of its raw content. Look up `(source_id, content_hash)` in the `documents` table and branch on `ingestion_status`:
 
-Before creating the `IngestionJob` record, attempt to acquire a per-source advisory lock in PostgreSQL (or insert a `running` job row and rely on the partial unique index). If a job for that `source_id` is already running, abort rather than queue a second overlapping run. This prevents Celery Beat, a manual trigger, and a retry from processing the same file concurrently and producing duplicate documents, chunks, and embeddings.
+- **`complete` match found:** The file has been fully ingested previously — skip.
+- **`pending` match found:** A prior run inserted the document row but crashed before finishing chunks or embeddings. Delete the stale `pending` document row by its `ingestion_job_id` — not by `(source_id, content_hash)` alone — so the deletion is scoped to the specific stale job and cannot accidentally remove a row owned by a concurrent job. This deletion is itself a fenced write checkpoint: execute it inside a transaction that first verifies `SELECT status FROM ingestion_jobs WHERE id=:current_job_id` is still `running`. If the fencing read returns anything other than `running`, abort. After a successful delete, foreign-key cascades remove any partial chunks and embeddings; proceed with full ingestion from scratch.
+- **No match:** Proceed with full ingestion.
+
+Do not rely on file modification time. The `ingestion_status` column is the only reliable completeness signal. The pipeline uses **two explicit commit boundaries** — never one long transaction across all steps:
+
+- **Commit 1 (short):** INSERT the `pending` document row alone, in its own transaction, and commit immediately. This makes the row visible to recovery code even if the worker crashes during the pipeline steps that follow. No chunks or embeddings are written yet.
+- **Pipeline steps (no DB writes):** Run chunking (in-memory), call the Voyage AI embedding API, call the Claude extraction API. All results are held in memory. No database writes happen during API calls — this keeps transactions short and avoids holding locks across external network calls.
+- **Commit 2 (atomic):** Write all chunks, all embeddings, extracted knowledge, update `ingestion_status = 'complete'`, and increment `corpus_version` in a single transaction. Either all of these land together or none do.
+
+If the worker crashes between Commit 1 and Commit 2, the `pending` row persists with no children. The next run detects the `pending` row and repairs it by deleting and re-processing. If the worker crashes during Commit 2, the transaction rolls back — the `pending` row from Commit 1 remains, and the same repair path applies.
+
+Three distinct entry algorithms govern every ingestion task invocation — never use a single generic path for all three:
+
+- **Fresh starts** (Beat/manual, no `job_id`): try INSERT new `running` row; on unique violation, enter the Stale Takeover Transaction (Algorithm C). Forward the acquired `job_id` to retries via task kwargs.
+- **Retry starts** (`job_id` present in task kwargs): UPDATE the specific `retrying` row back to `running` via `WHERE id=:job_id AND status='retrying'`; proceed only if 1 row affected. Never INSERT. Never run the stale-lock check.
+- **Stale takeovers** (Algorithm C): a single transaction that does `SELECT FOR UPDATE` on the active row, checks staleness, then retires it and inserts the replacement atomically. The source slot is never dropped without an immediate replacement in the same transaction. If the transaction rolls back for any reason, the old row reverts to its active state — no gap is left.
+
+The worker refreshes `locked_at` at each pipeline checkpoint so legitimately running jobs never appear stale. The stale threshold must be calibrated against the maximum single-checkpoint duration, not total job time.
 
 ### Definition of Done
 - Running ingestion against all files in `data/raw/` completes without errors
@@ -279,6 +332,8 @@ Implement in `app/tasks/personal_tasks.py`. For each Slack or email file, run th
 - `PATCH /v1/personal/tasks/{id}` — update status (complete, snoozed, dismissed)
 - `GET /v1/personal/summary` — task counts grouped by urgency band for the dashboard header
 
+**Tenant isolation invariant:** Every query and mutation on the `tasks` table must filter by both `tasks.id` and `tasks.user_id == current_user.id`. This applies to every single-record endpoint — `GET /{id}` and `PATCH /{id}`. An implementation that fetches by `id` alone allows any authenticated user to read or mutate another user's tasks by guessing or enumerating UUIDs. On a mismatch between the task's `user_id` and the authenticated user's ID, return 404 (not 403) — leaking the existence of a task to an unauthorized user is itself a disclosure. This invariant must be applied at the database query layer, not as a post-fetch check in application code.
+
 **5.6 — Unified Dashboard**  
 Build in `frontend/src/pages/DashboardPage.tsx`. Three panels:
 - **Left — Task Feed:** Tasks grouped into high, medium, and low urgency bands. Each card shows description, source, sender, deadline (if any), and urgency score. Action buttons: mark complete, snooze, dismiss. The feed polls for new tasks every 60 seconds.
@@ -312,6 +367,19 @@ Write focused tests for the 6 paths that break most painfully if wrong:
 - **Task extraction:** Given the enterprise proposal Slack thread, assert that a task is created with a description containing follow-up intent
 - **Context bundler:** Assert that after task creation, the `context_bundle` column is non-null and contains at least one chunk
 - **Auth guard:** Assert that all protected endpoints return 401 without a valid JWT token
+- **Tenant isolation:** Create two users (user A and user B), create a task owned by user A, assert that `GET /v1/personal/tasks/{id}` returns 404 when called with user B's token, and that `PATCH /v1/personal/tasks/{id}` similarly returns 404 — not 403, not 200
+- **Ingestion retry recovery — caught exception:** Simulate a retryable API error mid-pipeline; assert the job row transitions to `retrying` (not `failed`); assert the retry invocation uses Entry Algorithm B (UPDATE by `job_id`, not INSERT), transitions the row back to `running`, and completes successfully; assert no duplicate documents are created
+- **Retry does not abort on its own unique-index guard:** Assert that the retry invocation does not attempt an INSERT or stale-lock check — it must match exactly 1 row via `WHERE id=:job_id AND status='retrying'` and proceed without touching the partial unique index
+- **Crash after document insert, before chunks complete:** Insert a `pending` document row for a source, then run a fresh ingestion attempt; assert the `pending` row and any partial chunks/embeddings are deleted, full ingestion runs from scratch, and the document ends as `complete` with all expected chunks and embeddings present
+- **Hash skip only fires on `complete` documents:** Assert that a `pending` document row with a matching `(source_id, content_hash)` is never silently skipped — it must trigger repair, not skip
+- **Transaction rollback leaves detectable `pending` row:** Commit the `pending` document row (Commit 1), then force a rollback of Commit 2 (simulate a DB error during chunk write); assert the `pending` row survives (it was committed in Commit 1), assert the next run detects it, deletes it, and completes successfully with a `complete` row
+- **Fencing aborts evicted worker writes:** Mark a job row as `failed` (simulating stale takeover), then attempt a write checkpoint using the old `job_id`; assert the fencing read detects `status != 'running'` and the write is aborted without persisting any data
+- **Ingestion retry recovery — worker crash:** Simulate a hard crash by leaving a `running` row with a `locked_at` timestamp 20 minutes in the past (no heartbeat updates); assert the atomic takeover `UPDATE` matches exactly 1 row, the old row is marked `failed`, and the new attempt completes successfully
+- **Long-running ingestion not falsely evicted:** Simulate a legitimately long ingestion by inserting a `running` row with `locked_at` updated 14 minutes ago (just under the threshold); assert that a concurrent Beat trigger does not evict it — the atomic takeover `UPDATE` matches 0 rows and the trigger aborts silently
+- **Retry-gap race:** Simulate Celery Beat firing between the moment a job is marked `retrying` and the retry execution; assert Beat aborts rather than starting a duplicate run — confirming `retrying` is covered by the partial unique index
+- **Stale takeover atomicity — crash between UPDATE and INSERT:** Simulate a transaction rollback after the stale row is marked `failed` but before the replacement INSERT commits; assert the old row reverts to `running`/`retrying` (no gap left), and the next fresh-start attempt successfully completes the takeover
+- **Concurrent stale takeover race:** Simulate two fresh-start triggers simultaneously detecting the same stale row; assert only one acquires the lock via `SELECT FOR UPDATE` and inserts the replacement, and the other aborts cleanly without inserting a duplicate `running` row
+- **Stale takeover + pending-row repair while evicted worker resumes:** Simulate worker A (job_id=100) that commits a `pending` document row then is evicted by a stale takeover marking job 100 as `failed`; let worker B (job_id=101) run the pending-row repair fenced delete scoped to `ingestion_job_id=100`; then resume worker A and attempt its next write checkpoint; assert worker A's fencing read detects `status='failed'` and aborts all writes without persisting any data, and that worker B completes with a `complete` document row linked to job 101
 
 **6.3 — Demo Scenario Rehearsal**  
 Define and rehearse the exact 5-step demo that will be run in every interview. Practice until it runs in under 3 minutes without notes:
@@ -363,6 +431,7 @@ Before every demo session: start all services, trigger a full ingestion sync, ve
 - Authentication (JWT validity) and authorization (role check) are separate concerns implemented as separate FastAPI dependencies. Never conflate them.
 - All non-auth endpoints require a valid JWT. Ingestion endpoints additionally require the `admin` role. No exceptions.
 - Never pass JWT tokens in WebSocket URL query parameters. Use the `Sec-WebSocket-Protocol` header or in-message token exchange.
+- Every personal task query and mutation must filter by both `tasks.id` and `tasks.user_id == current_user.id` at the database layer. Return 404 on mismatch — not 403. Never fetch by ID alone and check ownership afterward in application code.
 - Validate all user inputs at API boundaries. Do not pass raw user input directly to database queries or Claude prompts without sanitization.
 
 ### Cost Management
@@ -373,8 +442,13 @@ Before every demo session: start all services, trigger a full ingestion sync, ve
 - Voyage AI and Anthropic are billed separately. Track both API keys and monitor both usage dashboards. Voyage AI embedding costs are typically much lower than Claude generation costs but can accumulate during large ingestion runs.
 
 ### Idempotency
-- Every ingestion task computes a SHA-256 content hash and checks for an existing `(source_id, content_hash)` pair before processing. Do not rely on file modification time — it is unreliable across git checkouts, Docker bind mounts, and regenerated fixtures.
-- A partial unique index on `ingestion_jobs (source_id) WHERE status = 'running'` prevents concurrent Celery Beat, manual trigger, and retry runs from processing the same source simultaneously.
+- Every ingestion task computes a SHA-256 content hash and checks `(source_id, content_hash, ingestion_status)` before processing. A `complete` match means skip. A `pending` match means a prior run crashed mid-pipeline — delete the stale document row scoped by its `ingestion_job_id` (not by hash alone), inside a fenced transaction that verifies the current job is still `running`, then re-process. The hash skip must never be applied to `pending` rows.
+- Two explicit commit boundaries keep transactions short: Commit 1 inserts only the `pending` document row and commits immediately (no chunks, no embeddings, no API calls inside the transaction); Commit 2 writes all chunks, embeddings, extracted knowledge, `ingestion_status = 'complete'`, and `corpus_version` atomically. No DB transaction spans an external API call.
+- Before each write checkpoint, the worker verifies its job row status with a fencing read inside the same transaction. If `status != 'running'`, abort — the job was evicted by a stale takeover. Every external call (Voyage AI, Claude, DB write) must have an explicit timeout so the stale threshold is enforceable.
+- The partial unique index covers `ingestion_jobs (source_id) WHERE status IN ('running', 'retrying')` — both active states. This closes the retry-gap race.
+- Three entry algorithms must be kept strictly separate: fresh starts INSERT and use the stale-lock takeover path on collision; retry starts UPDATE the specific `retrying` row by `job_id` and never INSERT or check for staleness; stale takeovers use a single atomic conditional UPDATE and check row count. An implementation that uses one generic path for all three will either dead-end retries on the unique index or incorrectly evict live jobs.
+- The `job_id` must be forwarded through `self.retry(kwargs={'job_id': ...})` so every retry invocation knows it is a retry and uses the correct entry algorithm.
+- The worker refreshes `locked_at` at each pipeline checkpoint. The stale threshold must be calibrated against the maximum single-checkpoint duration, not total job time. Never use a separate read-then-write for stale detection; the heartbeat can advance in between.
 - Database `UNIQUE` constraints on `documents (source_id, content_hash)` and `tasks (user_id, source_reference)` are the last line of defense against duplicates. Application-level checks reduce load; database constraints prevent corruption.
 - The `corpus_version` counter is incremented in the same transaction that commits new documents. Cache invalidation is implicit — no explicit key tracking or deletion loops.
 
@@ -394,8 +468,16 @@ Before every demo session: start all services, trigger a full ingestion sync, ve
 | Wrong vector dimension in pgvector schema | Low | High | voyage-3 produces 1024-dimension vectors — declare `Vector(1024)` in the migration; a mismatch silently corrupts similarity scores or raises a schema error at insert time |
 | pgvector HNSW index missing, causing slow queries | Medium | High | Create index as part of the Phase 3 Alembic migration, not as a manual post-migration step |
 | Contradiction detection fails to appear in RAG answer | Medium | High | Validate the RAG prompt produces contradiction language on seeded data in Phase 4 before advancing to Phase 5 |
-| Celery Beat, manual trigger, and retry run concurrently on the same source | Low | Medium | Partial unique index on `ingestion_jobs (source_id) WHERE status = 'running'`; application-level abort if a running job exists |
+| Celery Beat or manual trigger fires during retry window, causing duplicate run | Low | Medium | Partial unique index covers both `running` and `retrying` states — any concurrent attempt is rejected while a retry is pending |
+| Worker crash orphans `running`/`retrying` row, blocking source | Low | High | Worker heartbeats `locked_at` at each checkpoint; stale takeover (Algorithm C) uses `SELECT FOR UPDATE` + transactional retire-and-replace; rollback on failure reverts old row to active state — no permanent block |
+| Stale takeover leaves source slot unguarded between retiring old row and inserting new one | Low | High | Algorithm C wraps `UPDATE SET failed` and replacement `INSERT` in one transaction; `SELECT FOR UPDATE` serializes concurrent takeovers; slot is never dropped without an atomic replacement |
+| Long-running legitimate job falsely evicted as stale | Low | High | Heartbeat at each checkpoint keeps `locked_at` fresh; stale threshold set larger than max single-checkpoint duration; test asserts 14-minute-old row is not evicted |
+| Evicted worker resumes and writes concurrently with new worker | Low | High | Fencing check inside each write transaction reads job status; if `status != 'running'` for this `job_id`, abort all writes — evicted worker cannot corrupt the corpus |
+| DB transaction spans an external API call, holding locks during network latency | Low | Medium | No transaction may open across a Voyage AI or Claude API call; all API results held in memory between Commit 1 and Commit 2 |
+| Authenticated user reads or mutates another user's task via ID enumeration | Low | High | All personal task queries filter by both `id` and `user_id == current_user.id` at the database layer; mismatch returns 404 |
 | Duplicate documents/chunks from concurrent ingestion paths | Low | High | `UNIQUE (source_id, content_hash)` constraint on `documents`; content hash check before processing |
+| Crashed run leaves `pending` document that hash-skip treats as complete, silently dropping chunks/embeddings | Low | High | Hash skip checks `ingestion_status = 'complete'`; `pending` match triggers delete-and-reprocess, not skip |
+| Pending-row repair delete removes a row owned by a concurrent or resumed job, not the stale job | Low | High | Repair delete is scoped by `ingestion_job_id` (the stale job's ID), not by `(source_id, content_hash)` alone; deletion runs inside a fenced transaction that verifies the current job is still `running` before proceeding |
 | Stale cached answers served after ingestion (especially refund policy scenario) | Medium | High | Corpus version counter incremented in the same transaction as document commit; version is part of every cache key |
 | Any authenticated user triggers unbounded ingestion and Claude API calls | Medium | High | `require_admin` dependency on all ingestion endpoints; role column in `users` table |
 | JWT token leaked via WebSocket URL query parameter | Low | High | Use `Sec-WebSocket-Protocol` header or first-message token exchange; never put token in query string |
