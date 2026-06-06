@@ -157,7 +157,7 @@ Before writing any pipeline code, define all database tables using Alembic migra
 - `ingestion_jobs` — tracks every sync run with status, timing, record count, and error messages. Required columns beyond the basics: `source_id`, `status` (values: `running`, `retrying`, `success`, `failed`), `locked_at` (timestamp updated to `now()` at job entry **and refreshed as a heartbeat after each major pipeline checkpoint** — file load, chunk, embed, store), and `attempt_number`. Add a **partial unique index on `(source_id) WHERE status IN ('running', 'retrying')`** — this covers both active states so no concurrent or retry-gap race can insert a second live job row for the same source. The heartbeat keeps `locked_at` fresh throughout the job lifetime; the stale threshold (15 minutes) must be set larger than the maximum expected time between any two checkpoints, not the total job duration.
 - `users` — for authentication. Include a `role` column (values: `user`, `admin`). Seed at least one admin user during initial setup.
 - `tasks` — for the PIL: description, user ID, urgency score, urgency band, status, deadline, context bundle (JSONB). Add a `UNIQUE (user_id, source_reference)` constraint to prevent duplicate task extraction from the same source message.
-- `corpus_version` — a single-row table storing an incrementing integer counter. Incremented transactionally at the end of every successful ingestion job. Used as the cache namespace prefix.
+- `corpus_version` — a single-row table storing an incrementing integer counter. Incremented inside **Commit 2** — the same transaction that writes chunks, embeddings, and marks the document `complete`. One increment per successfully committed document, not once per job. This is the only place the counter advances; the job-level `success` transition does not touch it. Cache invalidation is implicit — any query that runs after a new document is committed will see the incremented version and miss the cache.
 
 Create the HNSW index on the embeddings vector column immediately after the initial migration. Do not leave this as a manual step.
 
@@ -217,13 +217,20 @@ All steps below run inside a single database transaction. The `SELECT FOR UPDATE
 
 **On final failure (max retries exceeded):** Transition to `failed` with the error message. Surface prominently in the ingestion dashboard.
 
-**On success:** Transition to `success` and increment `corpus_version` in the same transaction.
+**On success:** Transition to `success`. Do not increment `corpus_version` here — it was already incremented inside Commit 2 when the document was committed. Bumping it again at job success would double-invalidate the cache and make the version counter's semantics ambiguous for any job that processes more than one document.
 
 **3.9 — Idempotency and Concurrency Safety**  
 Before ingesting a file, compute a SHA-256 hash of its raw content. Look up `(source_id, content_hash)` in the `documents` table and branch on `ingestion_status`:
 
 - **`complete` match found:** The file has been fully ingested previously — skip.
-- **`pending` match found:** A prior run inserted the document row but crashed before finishing chunks or embeddings. Delete the stale `pending` document row by its `ingestion_job_id` — not by `(source_id, content_hash)` alone — so the deletion is scoped to the specific stale job and cannot accidentally remove a row owned by a concurrent job. This deletion is itself a fenced write checkpoint: execute it inside a transaction that first verifies `SELECT status FROM ingestion_jobs WHERE id=:current_job_id` is still `running`. If the fencing read returns anything other than `running`, abort. After a successful delete, foreign-key cascades remove any partial chunks and embeddings; proceed with full ingestion from scratch.
+- **`pending` match found:** A prior run inserted the document row but crashed before finishing chunks or embeddings. Repair sequence — every step runs inside one transaction:
+  1. `SELECT id, ingestion_job_id FROM documents WHERE source_id=:sid AND content_hash=:hash AND ingestion_status='pending'` — fetch the row's primary key and the job that owns it.
+  2. Verify the fetched `ingestion_job_id` is **not** the current job's `job_id`. If it matches, something is wrong (the current job somehow already owns this row) — abort and surface an error.
+  3. Fencing check: `SELECT status FROM ingestion_jobs WHERE id=:current_job_id`. If `status != 'running'`, the current job has been evicted — abort.
+  4. `DELETE FROM documents WHERE id=:stale_doc_id AND ingestion_job_id=:stale_job_id` — delete by primary key with the stale job ID in the predicate so the delete is a no-op if the row was already cleaned up by another process. Foreign-key cascades remove any partial chunks and embeddings.
+  5. COMMIT. Then proceed with full ingestion from scratch.
+  
+  Scoping the delete to `documents.id` (primary key) plus `ingestion_job_id` eliminates both the hash-only deletion bug (wrong target) and the current-job-id deletion bug (deletes its own not-yet-created row).
 - **No match:** Proceed with full ingestion.
 
 Do not rely on file modification time. The `ingestion_status` column is the only reliable completeness signal. The pipeline uses **two explicit commit boundaries** — never one long transaction across all steps:
@@ -380,6 +387,8 @@ Write focused tests for the 6 paths that break most painfully if wrong:
 - **Stale takeover atomicity — crash between UPDATE and INSERT:** Simulate a transaction rollback after the stale row is marked `failed` but before the replacement INSERT commits; assert the old row reverts to `running`/`retrying` (no gap left), and the next fresh-start attempt successfully completes the takeover
 - **Concurrent stale takeover race:** Simulate two fresh-start triggers simultaneously detecting the same stale row; assert only one acquires the lock via `SELECT FOR UPDATE` and inserts the replacement, and the other aborts cleanly without inserting a duplicate `running` row
 - **Stale takeover + pending-row repair while evicted worker resumes:** Simulate worker A (job_id=100) that commits a `pending` document row then is evicted by a stale takeover marking job 100 as `failed`; let worker B (job_id=101) run the pending-row repair fenced delete scoped to `ingestion_job_id=100`; then resume worker A and attempt its next write checkpoint; assert worker A's fencing read detects `status='failed'` and aborts all writes without persisting any data, and that worker B completes with a `complete` document row linked to job 101
+- **Corpus version increments exactly once per document, not per job:** Run a full ingestion of one file; read `corpus_version` before and after; assert it incremented by exactly 1. Then run the same ingestion again (hash skip fires — `complete` match); assert `corpus_version` did not increment. This pins the invariant that `corpus_version` advances in Commit 2 and nowhere else.
+- **Pending-row repair deletes by primary key + stale job ID, not by hash:** Insert a `pending` document row owned by job_id=100; start a new job (job_id=101); assert the repair SELECT fetches the row's `id` and `ingestion_job_id=100`; assert the DELETE predicate targets `documents.id` and `ingestion_job_id=100`, not `(source_id, content_hash)` alone; assert that a concurrent process deleting the same row between steps 1 and 4 causes the DELETE to affect 0 rows (no-op) rather than corrupting the corpus
 
 **6.3 — Demo Scenario Rehearsal**  
 Define and rehearse the exact 5-step demo that will be run in every interview. Practice until it runs in under 3 minutes without notes:
@@ -450,7 +459,7 @@ Before every demo session: start all services, trigger a full ingestion sync, ve
 - The `job_id` must be forwarded through `self.retry(kwargs={'job_id': ...})` so every retry invocation knows it is a retry and uses the correct entry algorithm.
 - The worker refreshes `locked_at` at each pipeline checkpoint. The stale threshold must be calibrated against the maximum single-checkpoint duration, not total job time. Never use a separate read-then-write for stale detection; the heartbeat can advance in between.
 - Database `UNIQUE` constraints on `documents (source_id, content_hash)` and `tasks (user_id, source_reference)` are the last line of defense against duplicates. Application-level checks reduce load; database constraints prevent corruption.
-- The `corpus_version` counter is incremented in the same transaction that commits new documents. Cache invalidation is implicit — no explicit key tracking or deletion loops.
+- The `corpus_version` counter is incremented exactly once per successfully committed document, inside Commit 2. It is not incremented at job success. Cache invalidation is implicit — no explicit key tracking or deletion loops. One increment point prevents the double-invalidation that would arise if the counter also advanced at job success.
 
 ### Logging
 - Log at INFO level: task start/end, ingestion job status changes, cache hits.
@@ -477,7 +486,8 @@ Before every demo session: start all services, trigger a full ingestion sync, ve
 | Authenticated user reads or mutates another user's task via ID enumeration | Low | High | All personal task queries filter by both `id` and `user_id == current_user.id` at the database layer; mismatch returns 404 |
 | Duplicate documents/chunks from concurrent ingestion paths | Low | High | `UNIQUE (source_id, content_hash)` constraint on `documents`; content hash check before processing |
 | Crashed run leaves `pending` document that hash-skip treats as complete, silently dropping chunks/embeddings | Low | High | Hash skip checks `ingestion_status = 'complete'`; `pending` match triggers delete-and-reprocess, not skip |
-| Pending-row repair delete removes a row owned by a concurrent or resumed job, not the stale job | Low | High | Repair delete is scoped by `ingestion_job_id` (the stale job's ID), not by `(source_id, content_hash)` alone; deletion runs inside a fenced transaction that verifies the current job is still `running` before proceeding |
+| Pending-row repair delete removes a row owned by a concurrent or resumed job, not the stale job | Low | High | Repair delete targets `documents.id` (primary key) plus `ingestion_job_id=:stale_job_id`; deletion runs inside a fenced transaction verifying the current job is still `running`; if the row is gone by commit time, the DELETE is a no-op |
+| `corpus_version` incremented at both Commit 2 (per document) and job success, causing double cache invalidation | Low | High | Counter is incremented exactly once per document inside Commit 2; the job-level `success` transition does not touch the counter |
 | Stale cached answers served after ingestion (especially refund policy scenario) | Medium | High | Corpus version counter incremented in the same transaction as document commit; version is part of every cache key |
 | Any authenticated user triggers unbounded ingestion and Claude API calls | Medium | High | `require_admin` dependency on all ingestion endpoints; role column in `users` table |
 | JWT token leaked via WebSocket URL query parameter | Low | High | Use `Sec-WebSocket-Protocol` header or first-message token exchange; never put token in query string |
