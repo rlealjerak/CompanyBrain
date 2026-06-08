@@ -146,9 +146,9 @@ Seed at least one admin user in the initial migration. Ingestion endpoints requi
 | `id` | UUID, PK | |
 | `user_id` | UUID, FK → `users.id` | |
 | `description` | TEXT NOT NULL | |
-| `urgency_score` | FLOAT | 0.0–1.0 |
-| `urgency_band` | TEXT | Values: `critical`, `high`, `medium`, `low` |
-| `status` | TEXT NOT NULL | Values: `open`, `in_progress`, `done` |
+| `urgency_score` | FLOAT | Range 1–10; matches Phase 5 scorer output |
+| `urgency_band` | TEXT | Values: `high` (8–10), `medium` (5–7), `low` (1–4) |
+| `status` | TEXT NOT NULL | Values: `open`, `complete`, `snoozed`, `dismissed` |
 | `deadline` | TIMESTAMPTZ | |
 | `context_bundle` | JSONB | Pre-fetched relevant chunks |
 | `source_reference` | TEXT NOT NULL | Namespaced source ID (see below) |
