@@ -118,7 +118,8 @@ The `ingestion_status` column is the completeness gate. The hash-skip check must
 | `source_type` | TEXT NOT NULL | |
 | `chunk_index` | INT NOT NULL | |
 | `vector` | VECTOR(1024) NOT NULL | Must be exactly 1024 — the `voyage-3` output dimension |
-| `created_at` | TIMESTAMPTZ NOT NULL | Used for recency-based reranking |
+| `source_timestamp` | TIMESTAMPTZ NOT NULL | Source document's own creation/last-modified time; copied from `Document.timestamp` at embed time; used for recency-based reranking |
+| `created_at` | TIMESTAMPTZ NOT NULL | Ingestion time; audit and operational use only — never used for reranking |
 
 The vector dimension must be declared as `VECTOR(1024)`. Declaring the wrong dimension silently corrupts similarity scores or raises a schema error at insert time. Setting it correctly now avoids a full re-migration and re-ingestion later.
 
@@ -151,11 +152,12 @@ Seed at least one admin user in the initial migration. Ingestion endpoints requi
 | `status` | TEXT NOT NULL | Values: `open`, `complete`, `snoozed`, `dismissed` |
 | `deadline` | TIMESTAMPTZ | |
 | `context_bundle` | JSONB | Pre-fetched relevant chunks |
-| `source_reference` | TEXT NOT NULL | Namespaced source ID (see below) |
+| `source_reference` | TEXT NOT NULL | Namespaced source container ID (see below) |
+| `task_fingerprint` | TEXT NOT NULL | SHA-256 of `source_reference` + normalized task description |
 
-`source_reference` format: `slack:{thread_ts}`, `email:{message_id}`, `ticket:{ticket_id}`. The namespace prefix prevents cross-source collisions. This field must be populated before every INSERT — a missing value is a pipeline bug, not a nullable edge case.
+`source_reference` format: `slack:{thread_ts}`, `email:{message_id}`, `ticket:{ticket_id}`. The namespace prefix prevents cross-source collisions. One Slack thread or email chain can produce multiple tasks for the same user, so `source_reference` alone cannot distinguish them. `task_fingerprint` is the per-task discriminator within the container. Both fields must be populated before every INSERT — a missing value is a pipeline bug, not a nullable edge case.
 
-Add `UNIQUE (user_id, source_reference)` to prevent duplicate task extraction from the same source message across retries and repeated scans.
+Add `UNIQUE (user_id, source_reference, task_fingerprint)` — not `UNIQUE (user_id, source_reference)` — so multiple distinct tasks from the same source are allowed while duplicate extraction of the same task is blocked across retries and repeated scans.
 
 ---
 
@@ -171,7 +173,7 @@ A single-row table with one INTEGER column. Incremented inside Commit 2 — the 
 - [ ] HNSW index on `embeddings.vector` created in the same migration
 - [ ] Partial unique index on `ingestion_jobs(source_id) WHERE status IN ('running', 'retrying')`
 - [ ] `UNIQUE (source_id, content_hash)` on `documents`
-- [ ] `UNIQUE (user_id, source_reference)` on `tasks`
+- [ ] `UNIQUE (user_id, source_reference, task_fingerprint)` on `tasks`
 - [ ] `corpus_version` seeded with value `0`
 - [ ] At least one admin user seeded
 - [ ] Migration verified to run cleanly against a fresh PostgreSQL container
@@ -254,7 +256,7 @@ Batch all embedding calls. Sending one request per chunk is dramatically slower 
 
 Add a startup check that fails fast with a clear error message if `VOYAGE_API_KEY` or `ANTHROPIC_API_KEY` is missing. A missing key that surfaces only during the first ingestion run wastes a full pipeline execution before failing.
 
-Store the resulting vectors with full metadata: `source_id`, `source_type`, `document_id`, `chunk_index`, and `created_at`. The `created_at` timestamp is the recency signal used in Phase 4's reranking step to resolve contradictions between sources.
+Store the resulting vectors with full metadata: `source_id`, `source_type`, `document_id`, `chunk_index`, `source_timestamp` (copied from `Document.timestamp` — the source file's own creation or last-modified time), and `created_at` (set to `now()` at embed time — ingestion time for audit purposes only). The `source_timestamp` is the recency signal used in Phase 4's reranking step to resolve contradictions: a document ingested later must not outrank a genuinely newer source. Never use `created_at` for reranking.
 
 ---
 
@@ -515,6 +517,7 @@ Tests must run against a real PostgreSQL instance using the actual Alembic migra
 - **Crash between Commit 1 and Commit 2:** Commit a `pending` document row; run a new ingestion attempt; assert Commit 1 claims the row in-place via UPDATE (not DELETE+INSERT), the primary key is unchanged, Commit 2 completes, and the document ends as `complete`.
 - **Transaction rollback leaves recoverable `pending` row:** Force a rollback of Commit 2; assert the `pending` row from Commit 1 survives intact; assert the next run claims it in-place and completes it without a unique constraint violation or duplicate row.
 - **Corpus version increments exactly once per document:** Assert `corpus_version` increments by 1 on a successful ingestion; assert it does not increment on a hash-skip (`complete` row found); assert it does not increment on job `success` transition.
+- **source_timestamp reflects source time, not ingestion time:** Ingest document A (`Document.timestamp = T1`) first, then ingest document B (`Document.timestamp = T2`, where T2 < T1). Assert document A's embedding rows have `source_timestamp = T1` and document B's have `source_timestamp = T2`, regardless of ingestion order. Assert that a rerank query over both result sets places document A (newer source) above document B (older source). This guards against the failure mode where ingestion order — not source recency — determines ranking.
 
 ### Job state machine
 
