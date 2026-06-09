@@ -1,0 +1,36 @@
+{
+  "message_id": "email-vendor-001",
+  "subject": "RE: Cloudware Inc. API Integration — Partnership Agreement",
+  "messages": [
+    {
+      "from": "Daniel Reyes <d.reyes@cloudware.io>",
+      "to": ["Roberto Leal <roberto.leal@acme.com>"],
+      "date": "2026-05-15T10:00:00Z",
+      "body": "Hi Roberto,\n\nThank you for the intro call last week. We're excited about the potential integration between Cloudware's logistics API and Acme's order management system.\n\nAs discussed, we can provide real-time shipping rate lookups and label generation via our API. The integration would replace your current manual carrier selection workflow and is estimated to save 2-3 minutes per fulfillment agent per order.\n\nTo move forward, we'd need Acme to commit to a minimum of 50,000 API calls/month for the first year. Our rate for that tier is $0.002/call ($1,200/month).\n\nPlease let me know your thoughts and we can schedule the technical scoping call.\n\nBest,\nDaniel Reyes\nPartnership Manager, Cloudware Inc."
+    },
+    {
+      "from": "Roberto Leal <roberto.leal@acme.com>",
+      "to": ["Daniel Reyes <d.reyes@cloudware.io>"],
+      "date": "2026-05-15T14:30:00Z",
+      "body": "Hi Daniel,\n\nThanks for the proposal. The time savings are compelling. I'm going to loop in our engineering lead David Kim to assess the technical feasibility before we commit to the volume.\n\nI'll come back to you with a timeline for the technical review. Can we book the scoping call for the week of June 2nd?\n\nBest,\nRoberto"
+    },
+    {
+      "from": "Daniel Reyes <d.reyes@cloudware.io>",
+      "to": ["Roberto Leal <roberto.leal@acme.com>"],
+      "date": "2026-05-28T09:00:00Z",
+      "body": "Hi Roberto,\n\nFollowing up on our conversation. I haven't heard back on the technical review or the scoping call. Is there anything blocking progress on your end?\n\nI want to be transparent: we have two other e-commerce companies evaluating the same integration this quarter. We're holding the pricing at $0.002/call for Acme through June 15th, after which our standard pricing applies ($0.003/call).\n\nLet me know if you need anything from our side to move the evaluation forward.\n\nBest,\nDaniel"
+    },
+    {
+      "from": "Roberto Leal <roberto.leal@acme.com>",
+      "to": ["Daniel Reyes <d.reyes@cloudware.io>"],
+      "date": "2026-05-28T11:00:00Z",
+      "body": "Daniel,\n\nApologies for the delay. I've been tied up with Q2 customer renewals. I've looped David Kim in now and he's reviewing the API documentation.\n\nI'll have a go/no-go decision for you by June 10th. To hold the pricing until June 15th is very helpful — we should be well within that window.\n\nOne question: can you confirm whether your API supports webhook callbacks for shipping status updates, or is it polling only?\n\nBest,\nRoberto"
+    },
+    {
+      "from": "Daniel Reyes <d.reyes@cloudware.io>",
+      "to": ["Roberto Leal <roberto.leal@acme.com>"],
+      "date": "2026-05-28T15:00:00Z",
+      "body": "Roberto,\n\nWe support both webhooks and polling. Webhooks are strongly recommended for status updates — polling at scale generates unnecessary API load and our rate limiter will throttle heavy polling patterns.\n\nWebhook documentation is in our developer portal. Happy to set up a call with Priya Patel or whoever is doing the technical evaluation to walk through the architecture.\n\nOne thing I need to confirm from your side before we can proceed: I need Roberto Leal or someone with authority to confirm the integration timeline in writing so our engineering team can allocate capacity. We need this by June 12th at the latest or we'll need to re-queue for Q3.\n\nBest,\nDaniel"
+    }
+  ]
+}

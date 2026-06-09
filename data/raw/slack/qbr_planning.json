@@ -1,0 +1,49 @@
+{
+  "thread_ts": "1749081600.000100",
+  "channel": "#customer-success",
+  "topic": "TechCorp Q3 QBR planning",
+  "messages": [
+    {
+      "ts": "1749081600.000100",
+      "user": "amy.huang",
+      "display_name": "Amy Huang",
+      "text": "Starting the planning thread for the TechCorp Q3 QBR. Tentative date is July 15. Their main contact is James Okafor (Head of Procurement). They've been a customer for 18 months at $180K ARR — solid account but we've had three open support tickets longer than 30 days that we need to close before the call.",
+      "is_reply": false
+    },
+    {
+      "ts": "1749081900.000200",
+      "user": "amy.huang",
+      "display_name": "Amy Huang",
+      "text": "@Roberto Leal can you pull together TechCorp's account history — usage metrics, ticket volume, and contract details? I need it by July 8 so I have time to prep the deck. Export from Salesforce is fine.",
+      "is_reply": true
+    },
+    {
+      "ts": "1749082200.000300",
+      "user": "roberto.leal",
+      "display_name": "Roberto Leal",
+      "text": "Sure, I'll get that together. Should I include the renewal risk flag? Their contract comes up in September.",
+      "is_reply": true
+    },
+    {
+      "ts": "1749082500.000400",
+      "user": "amy.huang",
+      "display_name": "Amy Huang",
+      "text": "Yes, definitely include that. They're flagged as moderate churn risk because of those unresolved tickets. If we can close those before July 15 it will change the story significantly.",
+      "is_reply": true
+    },
+    {
+      "ts": "1749082800.000500",
+      "user": "marcus.williams",
+      "display_name": "Marcus Williams",
+      "text": "I can get the support tickets triaged by next week. Two of them are straightforward — just waiting on customer responses. The third is a billing dispute I need Tom Bradley to look at.",
+      "is_reply": true
+    },
+    {
+      "ts": "1749083100.000600",
+      "user": "amy.huang",
+      "display_name": "Amy Huang",
+      "text": "Perfect. Let's sync again on July 5 to review everything. I'll send a calendar invite.",
+      "is_reply": true
+    }
+  ]
+}

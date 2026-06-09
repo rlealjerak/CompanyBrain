@@ -1,0 +1,70 @@
+{
+  "thread_ts": "1748995200.000100",
+  "channel": "#engineering",
+  "topic": "Checkout 500 errors — electronics category",
+  "messages": [
+    {
+      "ts": "1748995200.000100",
+      "user": "david.kim",
+      "display_name": "David Kim",
+      "text": "Heads up — we're seeing intermittent 500 errors on checkout specifically for items in the electronics category. Error rate is about 3% over the last 6 hours. Sentry is showing stack traces pointing at the inventory service.",
+      "is_reply": false
+    },
+    {
+      "ts": "1748995500.000200",
+      "user": "priya.patel",
+      "display_name": "Priya Patel",
+      "text": "Looking at the logs now. It's a timeout in the `check_inventory_availability` call — the inventory service is taking 8-12 seconds to respond for ELEC-category SKUs and the checkout service times out at 5 seconds.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748995800.000300",
+      "user": "david.kim",
+      "display_name": "David Kim",
+      "text": "@Priya Patel root cause? Is this a new query or did something change in the DB?",
+      "is_reply": true
+    },
+    {
+      "ts": "1748996100.000400",
+      "user": "priya.patel",
+      "display_name": "Priya Patel",
+      "text": "Looks like a missing index on the `category_code` column after last Thursday's migration. Full table scan for every electronics lookup. I can fix this with a hot index add — no downtime required.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748996400.000500",
+      "user": "david.kim",
+      "display_name": "David Kim",
+      "text": "Do it. Also @Priya Patel can you submit a PR adding the index and a regression test by tomorrow? We need this in the test suite so it doesn't happen again.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748996700.000600",
+      "user": "priya.patel",
+      "display_name": "Priya Patel",
+      "text": "Index is being applied now — should take about 10 minutes. I'll have the PR up by EOD.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748997000.000700",
+      "user": "david.kim",
+      "display_name": "David Kim",
+      "text": "Someone also needs to update the runbook for the inventory service. The troubleshooting section doesn't mention timeout tuning. I'll add it to the backlog but this should be done before we close this incident.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748997300.000800",
+      "user": "priya.patel",
+      "display_name": "Priya Patel",
+      "text": "I can take the runbook update too — I'll include the timeout config location and how to identify category-specific slowdowns.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748997600.000900",
+      "user": "david.kim",
+      "display_name": "David Kim",
+      "text": "Perfect. Error rate is dropping already. Looks like the index is helping. Let's do a post-mortem Friday — I'll send a calendar invite.",
+      "is_reply": true
+    }
+  ]
+}

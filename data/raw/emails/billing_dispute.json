@@ -1,0 +1,36 @@
+{
+  "message_id": "email-billing-001",
+  "subject": "RE: GlobalTech Solutions — Invoice Discrepancy",
+  "messages": [
+    {
+      "from": "Tom Bradley <tom.bradley@acme.com>",
+      "to": ["Jake Torres <jake.torres@acme.com>"],
+      "date": "2026-06-03T09:00:00Z",
+      "body": "Hi Jake,\n\nI'm seeing an issue with the GlobalTech Solutions account that I need your clarification on before I can process their May invoice.\n\nOur system shows their contracted rate as $24/seat/month (standard Enterprise), but I have a note from Lisa Nakamura saying their rate is $18/seat. That's a 25% discount — which is above your authorization level per the pricing policy (Sales Managers can approve up to 20%).\n\nI can't process an invoice at $18/seat without documented approval from VP level. Can you send me the written authorization or point me to the contract addendum?\n\nThanks,\nTom Bradley\nBilling Specialist"
+    },
+    {
+      "from": "Jake Torres <jake.torres@acme.com>",
+      "to": ["Tom Bradley <tom.bradley@acme.com>"],
+      "date": "2026-06-03T10:30:00Z",
+      "body": "Tom,\n\nThis was approved verbally in a leadership call on May 28th. I'll get you something in writing but the deal is solid — we need GlobalTech at $18/seat to close the 200-seat deployment. Total ARR at that rate is still $43,200/year.\n\nCan you hold the invoice until end of week? I'll get the VP sign-off documented by then.\n\nJake"
+    },
+    {
+      "from": "Tom Bradley <tom.bradley@acme.com>",
+      "to": ["Jake Torres <jake.torres@acme.com>"],
+      "date": "2026-06-03T11:00:00Z",
+      "body": "Jake,\n\nI understand, but per our pricing policy verbal approvals are not binding for discounts above the manager threshold. I have to follow the process here — I can't issue an invoice that isn't backed by written documentation, especially for a 25% discount.\n\nPlease get me the written VP authorization (email from the VP of Sales will work) and I'll process the invoice the same day.\n\nAlso, just to flag: this same situation came up in April with a different account. We should probably clarify the policy so this doesn't keep happening.\n\nTom"
+    },
+    {
+      "from": "Jake Torres <jake.torres@acme.com>",
+      "to": ["Tom Bradley <tom.bradley@acme.com>", "Sandra Mitchell <sandra.mitchell@acme.com>"],
+      "date": "2026-06-04T09:00:00Z",
+      "body": "Tom, Sandra —\n\nLooping Sandra in. I spoke with the VP of Sales yesterday (Sarah Chen is acting VP for sales matters while Victor is on leave). She confirmed the GlobalTech pricing verbally. Sandra, can you authorize this in writing so Tom can process the invoice?\n\nThis is a strategic account and the delay is causing friction. GlobalTech has already asked about their invoice twice.\n\nJake"
+    },
+    {
+      "from": "Sandra Mitchell <sandra.mitchell@acme.com>",
+      "to": ["Jake Torres <jake.torres@acme.com>", "Tom Bradley <tom.bradley@acme.com>"],
+      "date": "2026-06-04T14:00:00Z",
+      "body": "Jake, Tom —\n\nI've spoken with Sarah Chen. She confirms the $18/seat rate for GlobalTech Solutions was approved for this specific account as a strategic exception. Tom, please process the invoice at $18/seat for 200 seats.\n\nJake — going forward, please get written authorization BEFORE the deal closes when a discount exceeds your threshold. This cannot be a verbal-first process. I'll update the pricing policy to make this clearer.\n\nSandra Mitchell\nHead of Operations"
+    }
+  ]
+}

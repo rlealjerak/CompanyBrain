@@ -1,0 +1,42 @@
+{
+  "thread_ts": "1749254400.000100",
+  "channel": "#account-management",
+  "topic": "Meridian Technologies — proposal overdue",
+  "messages": [
+    {
+      "ts": "1749254400.000100",
+      "user": "sarah.chen",
+      "display_name": "Sarah Chen",
+      "text": "@Roberto Leal I need you on this immediately. Meridian Technologies has been waiting over a week for the updated enterprise pricing proposal. Their procurement lead emailed me directly this morning — they have a board approval deadline on Friday and we are at serious risk of losing this deal. This is a $250K ARR contract.",
+      "is_reply": false
+    },
+    {
+      "ts": "1749254700.000200",
+      "user": "sarah.chen",
+      "display_name": "Sarah Chen",
+      "text": "Please send them the updated Enterprise tier pricing with the custom rate we discussed ($22/seat/month for 120 seats) and include **Net 60 payment terms** instead of our standard Net 30. We agreed to this in the planning call two weeks ago.",
+      "is_reply": true
+    },
+    {
+      "ts": "1749255000.000300",
+      "user": "sarah.chen",
+      "display_name": "Sarah Chen",
+      "text": "Also make sure the proposal references the dedicated onboarding timeline — 4 weeks with engineering support included. Do this by EOD today. Their contact is Lisa Park, lisa.park@meridiantech.com.",
+      "is_reply": true
+    },
+    {
+      "ts": "1749255300.000400",
+      "user": "roberto.leal",
+      "display_name": "Roberto Leal",
+      "text": "On it. I'll have the proposal out by 3 PM. Sorry for the delay — I missed the follow-up reminder.",
+      "is_reply": true
+    },
+    {
+      "ts": "1749255600.000500",
+      "user": "sarah.chen",
+      "display_name": "Sarah Chen",
+      "text": "Please loop me in on the email when you send it. And log everything in Salesforce — this is a top-priority deal for Q2.",
+      "is_reply": true
+    }
+  ]
+}

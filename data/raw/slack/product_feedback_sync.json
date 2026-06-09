@@ -1,0 +1,49 @@
+{
+  "thread_ts": "1748649600.000100",
+  "channel": "#product",
+  "topic": "Enterprise customer feature requests — Q2 roadmap",
+  "messages": [
+    {
+      "ts": "1748649600.000100",
+      "user": "amy.huang",
+      "display_name": "Amy Huang",
+      "text": "Dropping the consolidated feature request list from enterprise customers this quarter. Top three themes: (1) bulk CSV export for order history, (2) role-based access controls within an org, (3) API rate limit increase for automated integrations.",
+      "is_reply": false
+    },
+    {
+      "ts": "1748649900.000200",
+      "user": "david.kim",
+      "display_name": "David Kim",
+      "text": "CSV export is already on the backlog — probably Q3. RBAC is a bigger lift, Q4 at the earliest. Rate limit increase we can look at sooner, maybe next sprint.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748650200.000300",
+      "user": "amy.huang",
+      "display_name": "Amy Huang",
+      "text": "The rate limit one is coming from Meridian Technologies and GlobalTech Solutions specifically. Both are running automated syncs and hitting the 1,000 req/hour cap.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748650500.000400",
+      "user": "david.kim",
+      "display_name": "David Kim",
+      "text": "@Priya Patel can you take a look at the rate limiter config and see what it would take to offer a tiered limit for Enterprise accounts? Let's say 5,000 req/hour as an enterprise option.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748650800.000500",
+      "user": "priya.patel",
+      "display_name": "Priya Patel",
+      "text": "I'll investigate and have an estimate by Thursday. The rate limiter is Redis-based so adding a tier should be straightforward — main concern is documenting it in the API docs.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748651100.000600",
+      "user": "amy.huang",
+      "display_name": "Amy Huang",
+      "text": "That would be huge. Let's make sure the enterprise tier rate limit is communicated in the next customer newsletter.",
+      "is_reply": true
+    }
+  ]
+}

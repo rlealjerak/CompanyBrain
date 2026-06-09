@@ -1,0 +1,36 @@
+{
+  "message_id": "email-enterprise-001",
+  "subject": "RE: Meridian Technologies — Enterprise Contract Renewal",
+  "messages": [
+    {
+      "from": "Lisa Park <lisa.park@meridiantech.com>",
+      "to": ["Roberto Leal <roberto.leal@acme.com>"],
+      "date": "2026-05-28T09:15:00Z",
+      "body": "Hi Roberto,\n\nFollowing up on our call from two weeks ago. Our procurement board meets on June 13th and I need the formal proposal with updated pricing before then. We're looking at the 120-seat Enterprise tier deployment as discussed.\n\nCan you confirm the pricing, payment terms, and the dedicated onboarding timeline? We're also wondering if you can match the rate we were quoted — I believe it was $22/seat based on our conversation with Sarah Chen.\n\nPlease let me know if you need anything from our side.\n\nBest,\nLisa Park\nHead of Procurement, Meridian Technologies"
+    },
+    {
+      "from": "Roberto Leal <roberto.leal@acme.com>",
+      "to": ["Lisa Park <lisa.park@meridiantech.com>"],
+      "date": "2026-05-28T11:30:00Z",
+      "body": "Hi Lisa,\n\nThank you for following up. I'm confirming the pricing details now with our sales leadership and will have a formal proposal to you by end of day tomorrow.\n\nTo confirm my understanding: 120 seats at Enterprise tier, with the custom rate that was discussed. I'll also include the onboarding timeline — we can commit to a 4-week dedicated onboarding with engineering support included.\n\nFor payment terms, can you confirm whether Net 30 or Net 60 is preferred? I want to make sure the proposal matches your procurement requirements exactly.\n\nBest,\nRoberto Leal\nAccount Manager, Acme E-commerce"
+    },
+    {
+      "from": "Lisa Park <lisa.park@meridiantech.com>",
+      "to": ["Roberto Leal <roberto.leal@acme.com>"],
+      "date": "2026-05-28T13:00:00Z",
+      "body": "Hi Roberto,\n\nNet 60 would be ideal for us — our AP cycle is 45 days so Net 30 is always a scramble. If you can include Net 60, that would be greatly appreciated and would make this an easy approval internally.\n\nLooking forward to the proposal.\n\nBest,\nLisa"
+    },
+    {
+      "from": "Roberto Leal <roberto.leal@acme.com>",
+      "to": ["Lisa Park <lisa.park@meridiantech.com>"],
+      "date": "2026-06-06T09:00:00Z",
+      "body": "Hi Lisa,\n\nI apologize for the delay in getting this to you — I've been coordinating with our leadership team to finalize the terms.\n\nPlease find the attached proposal for 120 seats at $22/seat/month on our Enterprise tier with Net 60 payment terms and a 4-week dedicated onboarding program. All terms are as discussed.\n\nPlease let me know if you have any questions. I'm available for a call today or tomorrow to walk through the proposal.\n\nBest,\nRoberto Leal\nAccount Manager, Acme E-commerce"
+    },
+    {
+      "from": "Lisa Park <lisa.park@meridiantech.com>",
+      "to": ["Roberto Leal <roberto.leal@acme.com>"],
+      "date": "2026-06-06T14:30:00Z",
+      "body": "Roberto,\n\nThank you — received the proposal. I'll review it today and share with our CFO. I'll come back to you with any questions before the June 13th board meeting.\n\nThe terms look good at first glance. Net 60 and the dedicated onboarding are exactly what we needed.\n\nBest,\nLisa"
+    }
+  ]
+}

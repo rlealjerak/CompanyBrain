@@ -1,0 +1,49 @@
+{
+  "thread_ts": "1746700800.000100",
+  "channel": "#support-team",
+  "topic": "Refund window clarification — how many days?",
+  "messages": [
+    {
+      "ts": "1746700800.000100",
+      "user": "emily.rodriguez",
+      "display_name": "Emily Rodriguez",
+      "text": "Quick question for the team — I have a customer asking about the return window. The policy doc I have says 14 days but I heard it changed. Which one is correct?",
+      "is_reply": false
+    },
+    {
+      "ts": "1746701100.000200",
+      "user": "marcus.williams",
+      "display_name": "Marcus Williams",
+      "text": "Hey Emily, good catch. The policy was updated on April 1st. It is now **30 days** from confirmed delivery, no questions asked for orders under $500. The 14-day doc is old — Version 2.1 from December 2025. Ignore it.",
+      "is_reply": true
+    },
+    {
+      "ts": "1746701400.000300",
+      "user": "emily.rodriguez",
+      "display_name": "Emily Rodriguez",
+      "text": "Got it, 30 days. Should I still ask for a receipt?",
+      "is_reply": true
+    },
+    {
+      "ts": "1746701600.000400",
+      "user": "marcus.williams",
+      "display_name": "Marcus Williams",
+      "text": "No receipt required for orders under $500. The order confirmation email is enough. For $500+, we still need a receipt or invoice number. Sandra pushed that change through — it's in Version 3.0 of the policy doc.",
+      "is_reply": true
+    },
+    {
+      "ts": "1746701800.000500",
+      "user": "emily.rodriguez",
+      "display_name": "Emily Rodriguez",
+      "text": "Perfect, thank you. I'll update my cheat sheet and let the customer know.",
+      "is_reply": true
+    },
+    {
+      "ts": "1746702000.000600",
+      "user": "marcus.williams",
+      "display_name": "Marcus Williams",
+      "text": "Also flag this for Sandra — we should update the support KB article that still shows 14 days. I'll create a ticket.",
+      "is_reply": true
+    }
+  ]
+}

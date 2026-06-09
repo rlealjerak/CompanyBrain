@@ -1,0 +1,147 @@
+{
+  "company": "Acme E-commerce",
+  "last_updated": "2026-03-15",
+  "stale_threshold_hours": 4,
+  "rules": [
+    {
+      "issue_type": "refund",
+      "severity": "low",
+      "description": "Refund within policy window, order <$500",
+      "first_responder": "emily.rodriguez",
+      "escalation_path": ["marcus.williams"],
+      "sla_hours": 24,
+      "on_call_required": false,
+      "notes": "Tier 1 can resolve without escalation"
+    },
+    {
+      "issue_type": "refund",
+      "severity": "medium",
+      "description": "Refund within policy, order $500–$1000; or refund exception request",
+      "first_responder": "marcus.williams",
+      "escalation_path": ["marcus.williams", "sandra.mitchell"],
+      "sla_hours": 8,
+      "on_call_required": false,
+      "notes": "Tier 2 required for orders over $500"
+    },
+    {
+      "issue_type": "refund",
+      "severity": "high",
+      "description": "Refund over $1000 or beyond 44-day maximum window",
+      "first_responder": "marcus.williams",
+      "escalation_path": ["marcus.williams", "sandra.mitchell"],
+      "sla_hours": 4,
+      "on_call_required": false,
+      "notes": "Operations approval required beyond 44 days"
+    },
+    {
+      "issue_type": "billing",
+      "severity": "low",
+      "description": "Billing dispute under $500",
+      "first_responder": "emily.rodriguez",
+      "escalation_path": ["tom.bradley"],
+      "sla_hours": 24,
+      "on_call_required": false,
+      "notes": "Tier 1 can handle with billing team verification"
+    },
+    {
+      "issue_type": "billing",
+      "severity": "medium",
+      "description": "Billing dispute $500–$2500",
+      "first_responder": "tom.bradley",
+      "escalation_path": ["tom.bradley", "jake.torres"],
+      "sla_hours": 8,
+      "on_call_required": false,
+      "notes": "Billing specialist handles; Sales Manager approval for discounts"
+    },
+    {
+      "issue_type": "billing",
+      "severity": "high",
+      "description": "Billing dispute over $2500 or discount above manager threshold",
+      "first_responder": "tom.bradley",
+      "escalation_path": ["tom.bradley", "jake.torres", "roberto.leal", "sandra.mitchell"],
+      "sla_hours": 4,
+      "on_call_required": false,
+      "notes": "VP-level written approval required"
+    },
+    {
+      "issue_type": "shipping",
+      "severity": "low",
+      "description": "Standard shipping delay or minor damage",
+      "first_responder": "emily.rodriguez",
+      "escalation_path": ["marcus.williams"],
+      "sla_hours": 24,
+      "on_call_required": false,
+      "notes": "Tier 1 authorized for shipping fee refund and $15 credit"
+    },
+    {
+      "issue_type": "shipping",
+      "severity": "medium",
+      "description": "Lost shipment under $200, SLA breach, or international customs issue",
+      "first_responder": "marcus.williams",
+      "escalation_path": ["marcus.williams", "sandra.mitchell"],
+      "sla_hours": 8,
+      "on_call_required": false,
+      "notes": "Tier 2 required for lost shipment replacement"
+    },
+    {
+      "issue_type": "shipping",
+      "severity": "high",
+      "description": "Lost shipment over $1000, carrier fraud suspected",
+      "first_responder": "marcus.williams",
+      "escalation_path": ["marcus.williams", "sandra.mitchell"],
+      "sla_hours": 2,
+      "on_call_required": true,
+      "notes": "Operations involved for insurance claims"
+    },
+    {
+      "issue_type": "technical",
+      "severity": "low",
+      "description": "Account access, minor UI issues, how-to questions",
+      "first_responder": "emily.rodriguez",
+      "escalation_path": ["marcus.williams", "priya.patel"],
+      "sla_hours": 24,
+      "on_call_required": false,
+      "notes": "Engineering only if bug confirmed"
+    },
+    {
+      "issue_type": "technical",
+      "severity": "medium",
+      "description": "API errors, integration failures, data sync issues",
+      "first_responder": "marcus.williams",
+      "escalation_path": ["marcus.williams", "david.kim"],
+      "sla_hours": 8,
+      "on_call_required": false,
+      "notes": "Engineering lead involved for any API or integration issue"
+    },
+    {
+      "issue_type": "technical",
+      "severity": "critical",
+      "description": "Service outage, checkout failure, data loss",
+      "first_responder": "david.kim",
+      "escalation_path": ["david.kim", "priya.patel", "sandra.mitchell"],
+      "sla_hours": 1,
+      "on_call_required": true,
+      "notes": "PagerDuty alert triggers automatically. All hands."
+    },
+    {
+      "issue_type": "vip",
+      "severity": "any",
+      "description": "Any issue from a VIP account (ARR ≥ $100K)",
+      "first_responder": "roberto.leal",
+      "escalation_path": ["roberto.leal", "amy.huang", "sarah.chen"],
+      "sla_hours": 1,
+      "on_call_required": false,
+      "notes": "All VIP tickets bypass Tier 1. Unresolved after 4 hours goes to Sarah Chen directly."
+    },
+    {
+      "issue_type": "legal",
+      "severity": "critical",
+      "description": "Legal threat, regulatory inquiry, media contact",
+      "first_responder": "sandra.mitchell",
+      "escalation_path": ["sandra.mitchell"],
+      "sla_hours": 0.5,
+      "on_call_required": true,
+      "notes": "Contact Sandra by phone immediately. Do not make commitments or statements. Log with legal-hold tag."
+    }
+  ]
+}

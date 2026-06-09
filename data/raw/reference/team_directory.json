@@ -1,0 +1,105 @@
+{
+  "company": "Acme E-commerce",
+  "last_updated": "2026-06-01",
+  "employees": [
+    {
+      "name": "Sandra Mitchell",
+      "username": "sandra.mitchell",
+      "email": "sandra.mitchell@acme.com",
+      "role": "Head of Operations",
+      "department": "Operations",
+      "manager_username": null,
+      "is_manager": true
+    },
+    {
+      "name": "Sarah Chen",
+      "username": "sarah.chen",
+      "email": "sarah.chen@acme.com",
+      "role": "VP Customer Success",
+      "department": "Customer Success",
+      "manager_username": "sandra.mitchell",
+      "is_manager": true
+    },
+    {
+      "name": "Roberto Leal",
+      "username": "roberto.leal",
+      "email": "roberto.leal@acme.com",
+      "role": "Account Manager",
+      "department": "Customer Success",
+      "manager_username": "sarah.chen",
+      "is_manager": false
+    },
+    {
+      "name": "Amy Huang",
+      "username": "amy.huang",
+      "email": "amy.huang@acme.com",
+      "role": "Customer Success Manager",
+      "department": "Customer Success",
+      "manager_username": "sarah.chen",
+      "is_manager": false
+    },
+    {
+      "name": "Marcus Williams",
+      "username": "marcus.williams",
+      "email": "marcus.williams@acme.com",
+      "role": "Senior Support Agent",
+      "department": "Customer Support",
+      "manager_username": "sandra.mitchell",
+      "is_manager": true
+    },
+    {
+      "name": "Emily Rodriguez",
+      "username": "emily.rodriguez",
+      "email": "emily.rodriguez@acme.com",
+      "role": "Support Agent",
+      "department": "Customer Support",
+      "manager_username": "marcus.williams",
+      "is_manager": false
+    },
+    {
+      "name": "David Kim",
+      "username": "david.kim",
+      "email": "david.kim@acme.com",
+      "role": "Engineering Lead",
+      "department": "Engineering",
+      "manager_username": "sandra.mitchell",
+      "is_manager": true
+    },
+    {
+      "name": "Priya Patel",
+      "username": "priya.patel",
+      "email": "priya.patel@acme.com",
+      "role": "Software Engineer",
+      "department": "Engineering",
+      "manager_username": "david.kim",
+      "is_manager": false
+    },
+    {
+      "name": "Jake Torres",
+      "username": "jake.torres",
+      "email": "jake.torres@acme.com",
+      "role": "Sales Manager",
+      "department": "Sales",
+      "manager_username": "sandra.mitchell",
+      "is_manager": true
+    },
+    {
+      "name": "Lisa Nakamura",
+      "username": "lisa.nakamura",
+      "email": "lisa.nakamura@acme.com",
+      "role": "Sales Representative",
+      "department": "Sales",
+      "manager_username": "jake.torres",
+      "is_manager": false
+    },
+    {
+      "name": "Tom Bradley",
+      "username": "tom.bradley",
+      "email": "tom.bradley@acme.com",
+      "role": "Billing Specialist",
+      "department": "Operations",
+      "manager_username": "sandra.mitchell",
+      "is_manager": false
+    }
+  ]
+}

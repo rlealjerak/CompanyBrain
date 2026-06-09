@@ -1,0 +1,56 @@
+{
+  "thread_ts": "1748476800.000100",
+  "channel": "#sales-team",
+  "topic": "GlobalTech Solutions — custom pricing approved",
+  "messages": [
+    {
+      "ts": "1748476800.000100",
+      "user": "jake.torres",
+      "display_name": "Jake Torres",
+      "text": "Team update: I've approved a custom pricing arrangement for GlobalTech Solutions. They're going live on Enterprise tier at **$18/seat/month** for their 200-seat deployment. This was discussed and signed off verbally in the leadership call this morning.",
+      "is_reply": false
+    },
+    {
+      "ts": "1748477100.000200",
+      "user": "lisa.nakamura",
+      "display_name": "Lisa Nakamura",
+      "text": "Got it. That's a 25% discount off the standard $24 rate. Should I note anything special in Salesforce?",
+      "is_reply": true
+    },
+    {
+      "ts": "1748477400.000300",
+      "user": "jake.torres",
+      "display_name": "Jake Torres",
+      "text": "Yes, note it as a strategic account deal. Don't put the discount percentage in — just log the final rate as $18/seat. We'll formalize it in the contract addendum next week.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748477700.000400",
+      "user": "lisa.nakamura",
+      "display_name": "Lisa Nakamura",
+      "text": "Noted. Should I create a support ticket for this so billing is aware?",
+      "is_reply": true
+    },
+    {
+      "ts": "1748478000.000500",
+      "user": "jake.torres",
+      "display_name": "Jake Torres",
+      "text": "No ticket needed for now — let's keep this informal until the amendment is signed. I'll loop in Tom Bradley directly. Just make sure the invoice when it goes out reflects $18/seat.",
+      "is_reply": true
+    },
+    {
+      "ts": "1748478300.000600",
+      "user": "lisa.nakamura",
+      "display_name": "Lisa Nakamura",
+      "text": "Understood. I'll also confirm the payment terms — standard Net 30?",
+      "is_reply": true
+    },
+    {
+      "ts": "1748478600.000700",
+      "user": "jake.torres",
+      "display_name": "Jake Torres",
+      "text": "Standard Net 30 for now. They asked for Net 60 but I didn't commit to that — the pricing was already a big give.",
+      "is_reply": true
+    }
+  ]
+}

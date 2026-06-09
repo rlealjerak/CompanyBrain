@@ -1,0 +1,118 @@
+{
+  "company": "Acme E-commerce",
+  "last_updated": "2026-04-01",
+  "currency": "USD",
+  "tiers": [
+    {
+      "name": "Starter",
+      "price_per_seat_monthly": 8.00,
+      "max_seats": 10,
+      "billing_options": ["monthly", "annual"],
+      "annual_discount_pct": 10,
+      "support_tier": "Email only",
+      "support_sla_hours": 48,
+      "features": [
+        "Core product catalog",
+        "Up to 10 user seats",
+        "Email support",
+        "Basic reporting",
+        "Standard API access (1,000 req/hr)"
+      ]
+    },
+    {
+      "name": "Growth",
+      "price_per_seat_monthly": 16.00,
+      "max_seats": 50,
+      "billing_options": ["monthly", "annual"],
+      "annual_discount_pct": 10,
+      "support_tier": "Email + Chat",
+      "support_sla_hours": 24,
+      "features": [
+        "Everything in Starter",
+        "Up to 50 user seats",
+        "Chat support",
+        "Advanced reporting and exports",
+        "Standard API access (1,000 req/hr)",
+        "Webhook support"
+      ]
+    },
+    {
+      "name": "Enterprise",
+      "price_per_seat_monthly": 24.00,
+      "max_seats": null,
+      "billing_options": ["annual"],
+      "annual_discount_pct": 10,
+      "support_tier": "Dedicated Account Manager",
+      "support_sla_hours": 1,
+      "features": [
+        "Everything in Growth",
+        "Unlimited seats",
+        "Dedicated Account Manager",
+        "Custom SLAs",
+        "Enhanced API access (1,000 req/hr standard; 5,000 req/hr available)",
+        "Priority onboarding (4-week program)",
+        "Custom payment terms available (Net 30 standard; Net 60 for >$500K ARR)",
+        "SSO and advanced security controls",
+        "Dedicated infrastructure options (quoted separately)"
+      ]
+    }
+  ],
+  "discount_rules": {
+    "annual_commitment": {
+      "discount_pct": 10,
+      "applies_to": "per-seat rate",
+      "note": "Applied before any additional negotiated discounts"
+    },
+    "authority_matrix": [
+      {
+        "role": "Sales Representative",
+        "max_discount_pct": 15,
+        "requires_documentation": true,
+        "requires_written_approval": false
+      },
+      {
+        "role": "Sales Manager",
+        "max_discount_pct": 20,
+        "requires_documentation": true,
+        "requires_written_approval": true
+      },
+      {
+        "role": "VP of Sales or above",
+        "max_discount_pct": 30,
+        "requires_documentation": true,
+        "requires_written_approval": true
+      }
+    ],
+    "notes": "Verbal approvals are not binding for discounts above the rep threshold. All discounts must be logged in Salesforce before a quote is issued. No retroactive discounts without VP approval and a signed contract amendment."
+  },
+  "coupon_codes": [
+    {
+      "code": "LAUNCH2026",
+      "discount_pct": 20,
+      "applies_to": "first year only",
+      "valid_through": "2026-09-30",
+      "conditions": "New accounts only, Starter or Growth tier"
+    },
+    {
+      "code": "PARTNER15",
+      "discount_pct": 15,
+      "applies_to": "ongoing",
+      "valid_through": null,
+      "conditions": "Approved partners only — must be in partner registry"
+    },
+    {
+      "code": "NONPROFIT",
+      "discount_pct": 30,
+      "applies_to": "ongoing",
+      "valid_through": null,
+      "conditions": "501(c)(3) documentation required — submit via support ticket"
+    }
+  ],
+  "payment_terms": {
+    "standard": "Net 30",
+    "monthly_billing_premium_pct": 15,
+    "late_payment_interest_monthly_pct": 1.5,
+    "grace_period_days": 10,
+    "enterprise_custom_terms": "Net 60 available for accounts >$500K ARR with VP approval"
+  }
+}
