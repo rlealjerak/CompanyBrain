@@ -41,7 +41,10 @@ celery_app.conf.update(
     # Retry on broker connection failure at startup (e.g. Redis not yet ready)
     broker_connection_retry_on_startup=True,
 
-    # beat_schedule is defined in Phase 3 once brain_tasks.scan_and_ingest
-    # is implemented. Defining it here before the task exists causes workers
-    # to reject every enqueued job with "unregistered task" errors.
+    beat_schedule={
+        "scan-raw-files-every-5-minutes": {
+            "task": "app.tasks.brain_tasks.scan_and_ingest",
+            "schedule": 300.0,
+        },
+    },
 )

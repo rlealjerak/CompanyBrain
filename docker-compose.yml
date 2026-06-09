@@ -55,6 +55,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-company_brain}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-company_brain}
       REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
     ports:
       - "8000:8000"
     volumes:
@@ -83,6 +84,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-company_brain}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-company_brain}
       REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
     volumes:
       - ./backend:/app
       - ./data:/data:ro
@@ -95,7 +97,28 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
-  # beat service added in Phase 3 once brain_tasks.scan_and_ingest is implemented.
+  # ── Celery Beat (scheduled file scanner) ────────────────────────────────
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app beat --loglevel INFO
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-company_brain}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-company_brain}
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+    volumes:
+      - ./backend:/app
+      - ./data:/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
   # ── React frontend (Vite dev server) ────────────────────────────────────
   frontend:
