@@ -98,7 +98,7 @@ def release_job(
     error_message: str | None = None,
 ) -> None:
     """Mark a job completed or failed."""
-    status = "completed" if success else "failed"
+    status = "success" if success else "failed"
     db.execute(
         sa.text(
             "UPDATE ingestion_jobs "
@@ -125,27 +125,22 @@ def mark_job_retrying(db: Session, job_id: uuid.UUID, error_message: str) -> Non
 
 
 def needs_ingestion(db: Session, file_source_id: str, current_mtime: datetime) -> bool:
-    """Return True if the file has never been successfully ingested or has changed."""
+    """Return True if this file path has no completed ingestion job.
+
+    Uses ingestion_jobs.source_id (file path) rather than documents.source_id
+    (connector-generated ID) so the lookup key is consistent with claim_job.
+    current_mtime is accepted for API compatibility; mtime-based change detection
+    is a v2 improvement (requires adding file_mtime to ingestion_jobs).
+    """
     row = db.execute(
         sa.text(
-            "SELECT source_mtime FROM documents "
-            "WHERE source_id = :source_id AND ingestion_status = 'complete' "
-            "ORDER BY created_at DESC LIMIT 1"
+            "SELECT 1 FROM ingestion_jobs "
+            "WHERE source_id = :source_id AND status = 'success' "
+            "LIMIT 1"
         ),
         {"source_id": file_source_id},
     ).fetchone()
-
-    if row is None:
-        return True
-
-    stored_mtime: datetime | None = row[0]
-    if stored_mtime is None:
-        return True
-
-    if stored_mtime.tzinfo is None:
-        stored_mtime = stored_mtime.replace(tzinfo=timezone.utc)
-
-    return current_mtime > stored_mtime
+    return row is None
 
 
 # ──────────────────────────────────────────────────────────────────── pipeline
@@ -166,7 +161,7 @@ def _ingest_document(db: Session, doc: Document, job_id: uuid.UUID) -> bool:
             "  (id, source_id, content_hash, source_mtime, ingestion_status, "
             "   ingestion_job_id, raw_content) "
             "VALUES "
-            "  (:id, :source_id, :hash, :mtime, 'processing', :job_id, :raw) "
+            "  (:id, :source_id, :hash, :mtime, 'pending', :job_id, :raw) "
             "ON CONFLICT ON CONSTRAINT uq_documents_source_hash DO NOTHING "
             "RETURNING id"
         ),
