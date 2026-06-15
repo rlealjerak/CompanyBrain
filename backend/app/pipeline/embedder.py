@@ -9,11 +9,7 @@ _BATCH_SIZE = 128
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embed *texts* with Voyage AI voyage-3 (1024 dims).
-
-    Processes in batches of 128 to stay within API limits.
-    Returns vectors in the same order as the input list.
-    """
+    """Embed document *texts* with Voyage AI voyage-3 (1024 dims), batched."""
     client = voyageai.Client(api_key=settings.voyage_api_key)
 
     all_embeddings: list[list[float]] = []
@@ -23,3 +19,10 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         all_embeddings.extend(result.embeddings)
 
     return all_embeddings
+
+
+def embed_query(text: str) -> list[float]:
+    """Embed a single search query with input_type='query' for retrieval accuracy."""
+    client = voyageai.Client(api_key=settings.voyage_api_key)
+    result = client.embed([text], model=_VOYAGE_MODEL, input_type="query")
+    return result.embeddings[0]
