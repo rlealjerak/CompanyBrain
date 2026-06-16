@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     environment: str = "development"
 
+    # Data directory — mounted at /data in Docker, override locally
+    data_dir: str = "/data"
+
     # Ingestion worker settings
     brain_worker_concurrency: int = 4
     personal_worker_concurrency: int = 2
