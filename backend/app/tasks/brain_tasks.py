@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+import sqlalchemy as sa
 
 from app.celery_app import celery_app
 from app.core.config import settings, validate_ai_keys
@@ -85,14 +88,14 @@ def scan_and_ingest() -> dict:
     bind=True,
     max_retries=settings.max_ingestion_retries,
 )
-def ingest_file(self, file_path: str) -> dict:
+def ingest_file(self, file_path: str, job_id: str | None = None) -> dict:
     """Run the full ingestion pipeline for one file.
 
     Implements the three-entry Algorithm A/C job state machine:
-    - Tries to claim the job atomically (Algorithm A).
-    - If the job is held by a fresh worker, drops this attempt.
-    - If the job is stale, takes it over (Algorithm C).
-    - On failure, marks the job 'retrying' and asks Celery to retry later.
+    - On first attempt, claims the job atomically (Algorithm A/C).
+    - On retry, resumes the same job by ID so the retrying row is not
+      treated as a fresh active job and blocked by claim_job.
+    - On final retry exhaustion, marks the job permanently failed.
     """
     validate_ai_keys(settings)
 
@@ -101,16 +104,34 @@ def ingest_file(self, file_path: str) -> dict:
 
     db_gen = get_db()
     db = next(db_gen)
-    job_id = None
+    claimed_job_id = None
 
     try:
-        job_id = claim_job(db, file_source_id)
-        if job_id is None:
+        # Resume the same job on retries so the 'retrying' row is reused
+        # rather than blocking a fresh claim via the partial unique index.
+        if job_id:
+            row = db.execute(
+                sa.text(
+                    "UPDATE ingestion_jobs "
+                    "SET status = 'running', locked_at = now(), "
+                    "    attempt_number = attempt_number + 1 "
+                    "WHERE id = :id AND status = 'retrying' "
+                    "RETURNING id"
+                ),
+                {"id": job_id},
+            ).fetchone()
+            db.commit()
+            claimed_job_id = uuid.UUID(str(row[0])) if row else None
+
+        if claimed_job_id is None:
+            claimed_job_id = claim_job(db, file_source_id)
+
+        if claimed_job_id is None:
             log.info("Job held by another worker for %s — dropping", file_source_id)
             return {"status": "skipped", "source_id": file_source_id}
 
-        processed = run_file_pipeline(db, path, job_id)
-        release_job(db, job_id, success=True)
+        processed = run_file_pipeline(db, path, claimed_job_id)
+        release_job(db, claimed_job_id, success=True)
 
         return {
             "status": "completed",
@@ -122,14 +143,28 @@ def ingest_file(self, file_path: str) -> dict:
         error_msg = f"{type(exc).__name__}: {exc}"
         log.exception("Ingestion failed for %s", file_source_id)
 
-        if job_id is not None:
+        if claimed_job_id is not None:
             try:
-                mark_job_retrying(db, job_id, error_msg)
+                db.rollback()
+                mark_job_retrying(db, claimed_job_id, error_msg)
             except Exception:
-                pass
+                log.warning("Could not mark job retrying for %s", file_source_id)
 
         retry_in = settings.retry_backoff_base_seconds * (2 ** self.request.retries)
-        raise self.retry(exc=exc, countdown=retry_in)
+        try:
+            raise self.retry(
+                exc=exc,
+                countdown=retry_in,
+                kwargs={"file_path": file_path, "job_id": str(claimed_job_id) if claimed_job_id else None},
+            )
+        except self.MaxRetriesExceededError:
+            if claimed_job_id is not None:
+                try:
+                    db.rollback()
+                    release_job(db, claimed_job_id, success=False, error_message=error_msg)
+                except Exception:
+                    log.warning("Could not mark job failed for %s", file_source_id)
+            raise
 
     finally:
         try:

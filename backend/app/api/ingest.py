@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 
 import sqlalchemy as sa
@@ -8,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_admin
+from app.core.config import settings
 from app.core.database import get_db
 from app.tasks.brain_tasks import ingest_file, scan_and_ingest
 
@@ -26,7 +28,8 @@ class TriggerRequest(BaseModel):
 @router.post("/trigger", status_code=status.HTTP_202_ACCEPTED)
 def trigger(body: TriggerRequest):
     if body.source:
-        ingest_file.delay(body.source)
+        full_path = str(Path(settings.data_dir) / "raw" / body.source)
+        ingest_file.delay(full_path)
         return {"status": "enqueued", "source": body.source}
     scan_and_ingest.delay()
     return {"status": "enqueued", "source": "all"}
