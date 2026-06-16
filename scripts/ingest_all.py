@@ -13,16 +13,26 @@ Usage:
 
 import os
 import sys
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
 # Allow importing from backend/app when run from the project root
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
+# Set localhost DATABASE_URL default BEFORE loading .env, so override=False
+# prevents the Docker-internal "postgres" hostname in .env from winning.
 os.environ.setdefault(
     "DATABASE_URL",
     "postgresql://company_brain:company_brain@localhost:5432/company_brain",
 )
+
+# Load .env from project root so API keys are available in os.environ for the
+# early checks below and for the SDKs that read env vars directly.
+_env_file = Path(__file__).parent.parent / ".env"
+if _env_file.exists():
+    from dotenv import load_dotenv
+    load_dotenv(_env_file, override=False)
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -49,9 +59,10 @@ def main() -> None:
     files = sorted(p for p in RAW_DIR.rglob("*") if p.is_file() and p.suffix in SUPPORTED)
     print(f"Found {len(files)} files in {RAW_DIR}")
 
-    success = 0
-    skipped = 0
-    failed = 0
+    files_ingested = 0
+    files_skipped = 0
+    files_failed = 0
+    docs_processed = 0
 
     for path in files:
         file_source_id = str(path.relative_to(RAW_DIR))
@@ -60,27 +71,36 @@ def main() -> None:
         with Session(engine) as db:
             if not needs_ingestion(db, file_source_id, mtime):
                 print(f"  [skip]    {file_source_id}")
-                skipped += 1
+                files_skipped += 1
                 continue
 
             job_id = claim_job(db, file_source_id)
             if job_id is None:
                 print(f"  [held]    {file_source_id}")
-                skipped += 1
+                files_skipped += 1
                 continue
 
             try:
                 processed = run_file_pipeline(db, path, job_id)
                 release_job(db, job_id, success=True)
                 print(f"  [ok]      {file_source_id}  ({processed} doc(s))")
-                success += 1
+                files_ingested += 1
+                docs_processed += processed
             except Exception as exc:
-                release_job(db, job_id, success=False, error_message=str(exc))
+                try:
+                    db.rollback()
+                    release_job(db, job_id, success=False, error_message=str(exc))
+                except Exception:
+                    pass
                 print(f"  [FAILED]  {file_source_id}  — {exc}", file=sys.stderr)
-                failed += 1
+                traceback.print_exc()
+                files_failed += 1
 
-    print(f"\nDone: {success} ingested, {skipped} skipped, {failed} failed.")
-    if failed:
+    print(
+        f"\nDone: {files_ingested} files ingested ({docs_processed} docs), "
+        f"{files_skipped} skipped, {files_failed} failed."
+    )
+    if files_failed:
         sys.exit(1)
 
 

@@ -177,8 +177,44 @@ def _ingest_document(db: Session, doc: Document, job_id: uuid.UUID) -> bool:
     db.commit()
 
     if not row:
-        log.debug("Skipping %s — content unchanged", doc.source_id)
-        return False
+        # Conflict on (source_id, content_hash). Check whether the existing row
+        # is usable: 'complete' means content is unchanged — skip. 'pending'
+        # means a prior run crashed after inserting but before finishing —
+        # delete the stranded row and re-insert so this run can complete it.
+        existing = db.execute(
+            sa.text(
+                "SELECT id, ingestion_status FROM documents "
+                "WHERE source_id = :source_id AND content_hash = :hash"
+            ),
+            {"source_id": doc.source_id, "hash": content_hash},
+        ).fetchone()
+
+        if existing and existing[1] == "pending":
+            log.info("Reclaiming stranded pending document %s", doc.source_id)
+            db.execute(sa.text("DELETE FROM documents WHERE id = :id"), {"id": existing[0]})
+            db.commit()
+            row = db.execute(
+                sa.text(
+                    "INSERT INTO documents "
+                    "  (id, source_id, content_hash, source_mtime, ingestion_status, "
+                    "   ingestion_job_id, raw_content) "
+                    "VALUES "
+                    "  (:id, :source_id, :hash, :mtime, 'pending', :job_id, :raw) "
+                    "RETURNING id"
+                ),
+                {
+                    "id": str(uuid.uuid4()),
+                    "source_id": doc.source_id,
+                    "hash": content_hash,
+                    "mtime": doc.timestamp,
+                    "job_id": str(job_id),
+                    "raw": doc.raw_content,
+                },
+            ).fetchone()
+            db.commit()
+        else:
+            log.debug("Skipping %s — content unchanged", doc.source_id)
+            return False
 
     doc_id = uuid.UUID(str(row[0]))
 

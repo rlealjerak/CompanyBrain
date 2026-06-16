@@ -30,7 +30,7 @@ def extract_knowledge(content: str, content_type: str) -> dict:
     Falls back to an empty structure on parse failure so the pipeline never
     hard-fails due to a malformed model response.
     """
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=60.0)
 
     truncated = content[:_MAX_INPUT_CHARS]
     prompt = _PROMPT.format(content_type=content_type, content=truncated)
