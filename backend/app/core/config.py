@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # Data directory — mounted at /data in Docker, override locally
     data_dir: str = "/data"
 
+    # PIL context bundler — internal API URL (http://api:8000 inside Docker)
+    brain_api_url: str = "http://api:8000"
+
     # Ingestion worker settings
     brain_worker_concurrency: int = 4
     personal_worker_concurrency: int = 2

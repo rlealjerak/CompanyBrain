@@ -91,6 +91,7 @@ export default function ChatPage() {
       <header style={styles.header}>
         <span style={styles.logo}>Company Brain</span>
         <nav style={styles.nav}>
+          <a href="/dashboard" style={styles.navLink}>Dashboard</a>
           <a href="/ingest" style={styles.navLink}>Ingestion</a>
           <span style={styles.userLabel}>{email}</span>
           <button onClick={logout} style={styles.logoutBtn}>Sign out</button>

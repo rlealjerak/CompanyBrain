@@ -51,6 +51,28 @@ export interface IngestionJob {
   error_message: string | null
 }
 
+export interface PersonalTask {
+  id: string
+  description: string
+  urgency_score: number | null
+  urgency_band: string | null
+  status: string
+  deadline: string | null
+  context_bundle: SearchResult[] | null
+  source_reference: string
+  source_label: string | null
+  sender: string | null
+  action_type: string | null
+  created_at: string | null
+}
+
+export interface TaskSummary {
+  high: number
+  medium: number
+  low: number
+  total: number
+}
+
 export const api = {
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>('/v1/auth/login', {
@@ -84,9 +106,31 @@ export const api = {
 
   getJob: (token: string, jobId: string) =>
     request<IngestionJob>(`/v1/ingest/jobs/${jobId}`, {}, token),
+
+  listTasks: (token: string, statusFilter?: string) => {
+    const qs = statusFilter ? `?status_filter=${statusFilter}` : ''
+    return request<{ tasks: PersonalTask[]; count: number }>(
+      `/v1/personal/tasks${qs}`, {}, token,
+    )
+  },
+
+  getTask: (token: string, taskId: string) =>
+    request<PersonalTask>(`/v1/personal/tasks/${taskId}`, {}, token),
+
+  patchTask: (token: string, taskId: string, status: string) =>
+    request<PersonalTask>(`/v1/personal/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }, token),
+
+  getTaskSummary: (token: string) =>
+    request<TaskSummary>('/v1/personal/summary', {}, token),
+
+  triggerPersonalExtraction: (token: string) =>
+    request<{ enqueued: number }>('/v1/personal/trigger', { method: 'POST' }, token),
 }
 
-export function openChatStream(token: string): WebSocket {
+export function openChatStream(_token: string): WebSocket {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   return new WebSocket(`${proto}://${window.location.host}/api/v1/query/chat/stream`)
 }

@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
 from app.api.ingest import router as ingest_router
+from app.api.personal import router as personal_router
 from app.api.query import router as query_router
 from app.core.database import check_postgres, check_redis
 
@@ -55,6 +56,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(auth_router)
 app.include_router(query_router)
 app.include_router(ingest_router)
+app.include_router(personal_router)
 
 
 # ──────────────────────────────────────────────────────────────── health

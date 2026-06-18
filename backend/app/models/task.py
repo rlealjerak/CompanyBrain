@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional  # used by urgency_score, deadline, context_bundle
+from typing import Optional
 
 from sqlalchemy import Float, Text, TIMESTAMP, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -30,5 +30,10 @@ class Task(Base):
     source_reference: Mapped[str] = mapped_column(Text, nullable=False)
     # task_fingerprint = SHA-256(source_reference + normalized description)
     task_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    # Added in migration 002
+    created_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True))
+    source_label: Mapped[Optional[str]] = mapped_column(Text)
+    sender: Mapped[Optional[str]] = mapped_column(Text)
+    action_type: Mapped[Optional[str]] = mapped_column(Text)
 
     user: Mapped["User"] = relationship("User", back_populates="tasks")  # noqa: F821

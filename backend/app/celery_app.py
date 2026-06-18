@@ -46,5 +46,9 @@ celery_app.conf.update(
             "task": "app.tasks.brain_tasks.scan_and_ingest",
             "schedule": 300.0,
         },
+        "scan-personal-tasks-every-5-minutes": {
+            "task": "app.tasks.personal_tasks.scan_and_extract_personal",
+            "schedule": 300.0,
+        },
     },
 )
