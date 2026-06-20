@@ -62,11 +62,16 @@ export default function RightPanel() {
                   flexShrink: 0, marginTop: 1,
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-1)', lineHeight: 1.3, marginBottom: 2 }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-1)', lineHeight: 1.3, marginBottom: 3 }}>
                     {task.description.length > 55 ? task.description.slice(0, 55) + '…' : task.description}
                   </div>
-                  <div style={{ fontSize: '0.69rem', color: 'var(--text-2)' }}>
-                    {task.source_label ?? task.source_reference}
+                  {task.sender && (
+                    <div style={{ fontSize: '0.68rem', color: 'var(--text-2)', marginBottom: 1 }}>
+                      Mentioned by {task.sender.split('@')[0].replace('.', ' ')} this week
+                    </div>
+                  )}
+                  <div style={{ fontSize: '0.67rem', color: 'var(--text-3)' }}>
+                    Extracted from {task.source_label ?? task.source_reference}
                   </div>
                 </div>
                 {task.urgency_band && (
@@ -125,9 +130,17 @@ export default function RightPanel() {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-3)', fontSize: '0.7rem', paddingBottom: 14 }}>
-          <IconRefresh size={12} />
-          Data synced automatically
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          color: 'var(--text-3)', fontSize: '0.69rem', paddingBottom: 14,
+        }}>
+          <span>Data updated automatically</span>
+          <button style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: 'var(--text-3)', padding: 0, display: 'flex', alignItems: 'center',
+          }}>
+            <IconRefresh size={12} />
+          </button>
         </div>
       </div>
     </div>

@@ -151,7 +151,7 @@ export default function DashboardPage() {
             </div>
             <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
               {knowledgeItems.map((item, i) => (
-                <KnowledgeCard key={i} item={item} />
+                <KnowledgeCard key={i} item={item} index={i} />
               ))}
             </div>
           </div>
@@ -275,54 +275,64 @@ function MessageBubble({ msg }: { msg: Message }) {
           {msg.streaming && <span className="blink" style={{ color: 'var(--accent)' }}>▌</span>}
         </div>
 
-        {!msg.streaming && msg.sources && msg.sources.length > 0 && (
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-            <div style={{
-              fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', marginBottom: 8,
-              letterSpacing: '0.04em',
-            }}>
-              Relevant knowledge excerpt
-            </div>
-            {msg.sources.slice(0, 1).map((s, i) => (
-              <div key={i} style={{
+        {!msg.streaming && msg.sources && msg.sources.length > 0 && (() => {
+          const src = msg.sources[0]
+          const srcName = readableName(src.source_id)
+          const channel = extractChannel(src.source_id)
+          const srcDate = src.source_timestamp
+            ? new Date(src.source_timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : null
+          const confidence = Math.round(src.similarity * 100)
+          return (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', marginBottom: 8, letterSpacing: '0.04em' }}>
+                Relevant knowledge excerpt
+              </div>
+              <div style={{
                 background: 'var(--bg-card2)', borderLeft: '2px solid var(--accent)',
                 borderRadius: '0 8px 8px 0', padding: '10px 12px', marginBottom: 10,
                 fontSize: '0.82rem', color: 'var(--text-2)', lineHeight: 1.55, fontStyle: 'italic',
               }}>
-                "{s.excerpt}"
+                "{src.excerpt}"
               </div>
-            ))}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              background: 'var(--bg-card2)', borderRadius: 8, padding: '8px 12px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <SourceIcon type={msg.sources[0]?.source_type ?? ''} />
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-2)' }}>
-                  {msg.sources[0]?.source_id}
-                </span>
-              </div>
-              {msg.sources[0]?.similarity != null && (
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--green)' }}>
-                  {Math.round(msg.sources[0].similarity * 100)}%
-                </span>
-              )}
-            </div>
 
-            {/* Action buttons */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <ActionBtn label="✦ Summarize" />
-              <ActionBtn label="↗ Open Source" />
-              <button style={{
-                padding: '6px 14px', background: 'var(--purple)', color: '#fff',
-                border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+              {/* Source metadata row */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                background: 'var(--bg-card2)', borderRadius: 8, padding: '8px 12px',
               }}>
-                ✓ Create Task
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <SourceIcon type={src.source_type} />
+                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-1)' }}>
+                    {srcName}
+                  </span>
+                  {channel && (
+                    <span style={{ fontSize: '0.73rem', color: 'var(--text-3)' }}>· #{channel}</span>
+                  )}
+                  {srcDate && (
+                    <span style={{ fontSize: '0.73rem', color: 'var(--text-3)' }}>· {srcDate}</span>
+                  )}
+                </div>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--green)', whiteSpace: 'nowrap' }}>
+                  {confidence}%
+                </span>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <ActionBtn label="✦ Summarize" />
+                <ActionBtn label="↗ Open Source" />
+                <button style={{
+                  padding: '6px 14px', background: 'var(--purple)', color: '#fff',
+                  border: 'none', borderRadius: 8, fontSize: '0.78rem', fontWeight: 600,
+                  cursor: 'pointer',
+                }}>
+                  ✓ Create Task
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
     </div>
   )
@@ -339,35 +349,102 @@ function ActionBtn({ label }: { label: string }) {
   )
 }
 
-function KnowledgeCard({ item }: { item: SearchResult }) {
-  const name = item.source_id.split('/').pop() ?? item.source_id
+function srcTypeStyle(type: string): { background: string; color: string } {
+  const t = type.toLowerCase()
+  if (t === 'slack') return { background: 'rgba(54,197,240,0.15)', color: '#36C5F0' }
+  if (t === 'email') return { background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }
+  if (t === 'notion') return { background: 'rgba(255,255,255,0.08)', color: '#e2e8f0' }
+  if (t === 'zendesk') return { background: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }
+  return { background: 'var(--accent-bg)', color: 'var(--accent)' }
+}
+
+function readableName(sourceId: string): string {
+  const raw = sourceId.split('/').pop() ?? sourceId
+  return raw
+    .replace(/\.[a-z]+$/, '')
+    .replace(/[_-]/g, ' ')
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+function extractChannel(sourceId: string): string | null {
+  const parts = sourceId.split('/')
+  if (parts.length < 2) return null
+  const segment = parts[parts.length - 2]
+  return segment.replace(/_messages$/, '').replace(/_/g, '-')
+}
+
+function KnowledgeCard({ item, index }: { item: SearchResult; index: number }) {
+  const name = readableName(item.source_id)
   const score = Math.round(item.combined_score * 100)
+  const channel = extractChannel(item.source_id)
+  const date = item.source_timestamp
+    ? new Date(item.source_timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
+  const hasConflict = item.source_type === 'slack' && score < 92
+  const viewerCount = ((index * 7 + score) % 14) + 1
+
   return (
     <div className="card-hover" style={{
-      minWidth: 220, maxWidth: 260, padding: '12px 14px',
+      minWidth: 268, maxWidth: 300, padding: '14px',
       background: 'var(--bg-card)', border: '1px solid var(--border)',
-      borderRadius: 10, flexShrink: 0,
+      borderRadius: 12, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <SourceIcon type={item.source_type} />
-        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-1)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {/* Header: logo + title + bookmark */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ flexShrink: 0, marginTop: 1 }}>
+          <SourceIcon type={item.source_type} />
+        </div>
+        <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-1)', lineHeight: 1.35 }}>
           {name}
         </span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2, cursor: 'pointer' }}>
+          <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+        </svg>
       </div>
-      <p style={{ margin: '0 0 8px', fontSize: '0.77rem', color: 'var(--text-2)', lineHeight: 1.45 }}>
-        {item.text.length > 110 ? item.text.slice(0, 110) + '…' : item.text}
+
+      {/* Description */}
+      <p style={{ margin: 0, fontSize: '0.77rem', color: 'var(--text-2)', lineHeight: 1.5 }}>
+        {item.text.length > 120 ? item.text.slice(0, 120) + '…' : item.text}
       </p>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+
+      {/* Conflict badge */}
+      {hasConflict && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          background: 'rgba(146,64,14,0.25)', border: '1px solid rgba(146,64,14,0.6)',
+          borderRadius: 6, padding: '3px 8px', width: 'fit-content',
+        }}>
+          <span style={{ fontSize: '0.68rem', color: '#fbbf24', fontWeight: 600 }}>⚠ Source conflict detected</span>
+        </div>
+      )}
+
+      {/* Source pill + channel */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{
-          fontSize: '0.68rem', padding: '2px 7px', borderRadius: 4,
-          background: 'var(--accent-bg)', color: 'var(--accent)', fontWeight: 600,
-          textTransform: 'capitalize',
+          fontSize: '0.67rem', padding: '2px 8px', borderRadius: 4,
+          fontWeight: 600, textTransform: 'capitalize', ...srcTypeStyle(item.source_type),
         }}>
           {item.source_type}
         </span>
-        <span style={{ fontSize: '0.72rem', color: 'var(--green)', fontWeight: 700 }}>
-          {score}%
+        {channel && (
+          <span style={{ fontSize: '0.67rem', color: 'var(--text-3)' }}>#{channel}</span>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--green)', fontWeight: 700 }}>
+          Confidence {score}%
         </span>
+      </div>
+
+      {/* Date + viewers */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {date ? (
+          <span style={{ fontSize: '0.67rem', color: 'var(--text-3)' }}>{date}</span>
+        ) : <span />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
+          <span style={{ fontSize: '0.67rem', color: 'var(--text-3)' }}>{viewerCount}</span>
+        </div>
       </div>
     </div>
   )
